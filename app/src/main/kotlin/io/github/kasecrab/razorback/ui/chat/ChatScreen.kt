@@ -15,13 +15,20 @@ import io.github.kasecrab.razorback.ui.models.ModelBrowserScreen
 import kotlinx.coroutines.launch
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.Theme
+import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
 import io.github.kasecrab.razorback.ui.core.ui
 import io.github.kasecrab.razorback.ui.drawer.DrawerHost
 import io.github.kasecrab.razorback.ui.drawer.DrawerPanel
 import io.github.kasecrab.razorback.ui.settings.SettingsScreen
+import io.github.kasecrab.razorback.ui.widget.ActionSheet
+import io.github.kasecrab.razorback.ui.widget.IconButton
 import io.github.kasecrab.razorback.ui.widget.TopBar
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.view.Gravity
+import io.github.kasecrab.razorback.model.Role
 
 class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
@@ -38,8 +45,15 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     private val list = RecyclerView(context)
     private val adapter = ChatAdapter(engine.messages)
     private val layout = LinearLayoutManager(context).apply { stackFromEnd = true }
+    private val pill = IconButton(context)
     val composer = Composer(context)
     private var following = true
+        set(value) {
+            if (field == value) return
+            field = value
+            pill.animate().alpha(if (value) 0f else 1f).setDuration(context.appTheme.durShort).start()
+            pill.isClickable = !value
+        }
 
     init {
         column.orientation = LinearLayout.VERTICAL
@@ -68,6 +82,18 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         })
         content.addView(list, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         content.addView(empty, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        pill.iconRes = R.drawable.ic_chevron_down
+        pill.filled = true
+        pill.tone = IconButton.Tone.PRIMARY
+        pill.contentDescription = context.getString(R.string.cd_scroll_bottom)
+        pill.alpha = 0f
+        pill.isClickable = false
+        pill.setOnClickListener {
+            list.smoothScrollToPosition(adapter.itemCount)
+            following = true
+        }
+        content.addView(pill, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.END or Gravity.BOTTOM).apply { setMargins(0, 0, dp(16), dp(12)) })
+        adapter.onMenu = { showMenu(it) }
         column.addView(content, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
 
         composer.onSend = { engine.send(it) }
@@ -138,6 +164,29 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     override fun onThemeChanged(theme: Theme) {
         super.onThemeChanged(theme)
         column.setBackgroundColor(theme.bg)
+    }
+
+    private fun showMenu(index: Int) {
+        val m = engine.messages.getOrNull(index) ?: return
+        val sheet = ActionSheet(context)
+        sheet.add(R.drawable.ic_copy, context.getString(R.string.action_copy)) {
+            context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("message", m.content))
+        }
+        if (m.role == Role.USER && !engine.isStreaming) {
+            sheet.add(R.drawable.ic_edit, context.getString(R.string.action_edit_resend)) {
+                composer.input.setText(m.content)
+                composer.input.setSelection(m.content.length)
+                composer.input.requestFocus()
+                engine.truncateFrom(index)
+            }
+        }
+        if (m.role == Role.ASSISTANT && index == engine.messages.size - 1 && !engine.isStreaming) {
+            sheet.add(R.drawable.ic_refresh, context.getString(R.string.action_regenerate)) { engine.regenerate() }
+        }
+        if (!engine.isStreaming) {
+            sheet.add(R.drawable.ic_trash, context.getString(R.string.action_delete), danger = true) { engine.delete(index) }
+        }
+        sheet.show()
     }
 
     private fun refreshEmpty() {

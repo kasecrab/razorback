@@ -46,4 +46,15 @@
     <string name="cd_favorite">Favourite</string>
     <string name="cd_refresh">Refresh</string>
     <string name="no_favorites_hint">Star models in the browser to keep them here</string>
+    <string name="thinking_live">Thinking…</string>
+    <string name="thought_for">Thought for %s</string>
+    <string name="thought">Thoughts</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_regenerate">Regenerate</string>
+    <string name="action_edit_resend">Edit and resend</string>
+    <string name="action_delete">Delete</string>
+    <string name="cd_more">More</string>
+    <string name="cd_scroll_bottom">Jump to latest</string>
+    <string name="cut_short">Cut short</string>
+    <string name="went_wrong">Something went wrong</string>
 </resources>

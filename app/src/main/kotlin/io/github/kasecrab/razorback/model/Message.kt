@@ -38,4 +38,6 @@ class Message(
     val createdAt: Long = System.currentTimeMillis(),
     var finishedAt: Long? = null,
     var firstTokenAt: Long? = null,
+    /** When the answer began after the reasoning, to show how long the model thought. */
+    var reasoningEndedAt: Long? = null,
 )

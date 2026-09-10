@@ -92,6 +92,22 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider) {
         handle?.cancel()
     }
 
+    fun delete(index: Int) {
+        if (isStreaming || index !in messages.indices) return
+        messages.removeAt(index)
+        for (l in listeners) l.onMessageRemoved(index)
+    }
+
+    /** Remove [index] and everything after it; the caller usually puts the text back in the composer. */
+    fun truncateFrom(index: Int) {
+        if (isStreaming || index !in messages.indices) return
+        while (messages.size > index) {
+            val last = messages.size - 1
+            messages.removeAt(last)
+            for (l in listeners) l.onMessageRemoved(last)
+        }
+    }
+
     private fun startReply() {
         val reply = Message(Ids.next(), Role.ASSISTANT, model = model, status = MessageStatus.STREAMING)
         messages.add(reply)
@@ -149,7 +165,10 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider) {
         if (index < 0) return@Runnable
         val m = messages[index]
         if (m.firstTokenAt == null && first != 0L) m.firstTokenAt = first
-        if (text != null) m.content += text
+        if (text != null) {
+            if (m.content.isEmpty() && m.reasoning != null && m.reasoningEndedAt == null) m.reasoningEndedAt = System.currentTimeMillis()
+            m.content += text
+        }
         if (reasoning != null) m.reasoning = (m.reasoning ?: "") + reasoning
         for (l in listeners) l.onMessageChanged(index, streaming = true)
     }
@@ -166,6 +185,7 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider) {
         reply.toolCalls = if (outcome.cancelled || outcome.error != null) emptyList() else acc.toolCalls()
         reply.usage = acc.usage
         reply.finishedAt = System.currentTimeMillis()
+        if (reply.reasoning != null && reply.reasoningEndedAt == null) reply.reasoningEndedAt = reply.finishedAt
         reply.status = when {
             outcome.cancelled -> MessageStatus.CUT
             outcome.error != null && reply.content.isEmpty() && reply.images.isEmpty() -> MessageStatus.ERROR

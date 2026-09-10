@@ -9,6 +9,9 @@ import io.github.kasecrab.razorback.model.Role
 /** Binds the engine's message list; streaming updates arrive as a payload and touch only text. */
 class ChatAdapter(private val messages: List<Message>) : RecyclerView.Adapter<ChatAdapter.Holder>() {
 
+    /** Called with the adapter position when a message asks for its action menu. */
+    var onMenu: ((Int) -> Unit)? = null
+
     class Holder(view: View) : RecyclerView.ViewHolder(view)
 
     init {
@@ -24,7 +27,13 @@ class ChatAdapter(private val messages: List<Message>) : RecyclerView.Adapter<Ch
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val view = if (viewType == USER) UserMessageView(parent.context) else AssistantMessageView(parent.context)
         view.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        return Holder(view)
+        val holder = Holder(view)
+        val menu: () -> Unit = { onMenu?.invoke(holder.bindingAdapterPosition) }
+        when (view) {
+            is UserMessageView -> view.onMenu = menu
+            is AssistantMessageView -> view.onMenu = menu
+        }
+        return holder
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {

@@ -7,6 +7,8 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import io.github.kasecrab.razorback.R
+import io.github.kasecrab.razorback.core.Fmt
 import io.github.kasecrab.razorback.model.Message
 import io.github.kasecrab.razorback.model.MessageStatus
 import io.github.kasecrab.razorback.ui.core.Fonts
@@ -16,17 +18,24 @@ import io.github.kasecrab.razorback.ui.core.Type
 import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.md.MessageView
+import io.github.kasecrab.razorback.ui.widget.IconButton
 import io.github.kasecrab.razorback.ui.widget.Shapes
+import java.text.DateFormat
+import java.util.Date
 
-/** The person's turn: a bubble hugging the end edge. */
+/** The person's turn: a bubble hugging the end edge; long-press for actions. */
 class UserMessageView(context: Context) : FrameLayout(context), Themed {
 
     private val bubble = TextView(context)
+    var onMenu: (() -> Unit)? = null
 
     init {
         bubble.typeface = Fonts.regular
         bubble.setPadding(dp(14), dp(10), dp(14), dp(10))
-        bubble.setTextIsSelectable(true)
+        bubble.setOnLongClickListener {
+            onMenu?.invoke()
+            true
+        }
         addView(
             bubble,
             LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.END).apply {
@@ -47,16 +56,47 @@ class UserMessageView(context: Context) : FrameLayout(context), Themed {
     }
 }
 
-/** The model's turn: flat, full width, with a status line when something went wrong. */
+/**
+ * The model's turn: model name and time on top, reasoning folded beneath, the answer as
+ * markdown, a status line if it was cut short, and usage on tap of the header.
+ */
 class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
 
+    private val header = LinearLayout(context)
+    private val who = TextView(context)
+    private val more = IconButton(context)
+    private val thinking = ThinkingView(context)
     private val body = MessageView(context)
     private val note = TextView(context)
+    private val usage = TextView(context)
+    private var message: Message? = null
+    var onMenu: (() -> Unit)? = null
 
     init {
         orientation = VERTICAL
-        setPadding(dp(16), dp(6), dp(16), dp(6))
-        addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        setPadding(dp(16), dp(8), dp(8), dp(6))
+
+        header.orientation = HORIZONTAL
+        header.gravity = Gravity.CENTER_VERTICAL
+        who.typeface = Fonts.medium
+        who.maxLines = 1
+        header.addView(who, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        more.iconRes = R.drawable.ic_more
+        more.contentDescription = context.getString(R.string.cd_more)
+        more.setOnClickListener { onMenu?.invoke() }
+        header.addView(more, LayoutParams(dp(36), dp(36)))
+        header.setOnClickListener { usage.visibility = if (usage.visibility == View.VISIBLE) View.GONE else View.VISIBLE }
+        addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        usage.typeface = Fonts.regular
+        usage.visibility = View.GONE
+        addView(usage, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
+
+        addView(thinking, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(6)
+            marginEnd = dp(8)
+        })
+        addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
         note.typeface = Fonts.regular
         note.visibility = View.GONE
         addView(note, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
@@ -65,28 +105,54 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
 
     fun bind(m: Message) {
         val theme = context.appTheme
+        message = m
+        who.text = (m.model?.substringAfter('/')?.substringBefore(':') ?: "") + "  ·  " + TIME.format(Date(m.createdAt))
+        thinking.bind(m)
         body.render(m.content)
         val noteText = when (m.status) {
-            MessageStatus.ERROR -> m.error ?: "Something went wrong"
-            MessageStatus.CUT -> m.error ?: "Cut short"
-            MessageStatus.STREAMING -> if (m.content.isEmpty()) "…" else null
+            MessageStatus.ERROR -> m.error ?: context.getString(R.string.went_wrong)
+            MessageStatus.CUT -> m.error ?: context.getString(R.string.cut_short)
+            MessageStatus.STREAMING -> if (m.content.isEmpty() && m.reasoning.isNullOrEmpty()) "…" else null
             MessageStatus.COMPLETE -> null
         }
         note.text = noteText
         note.visibility = if (noteText == null) View.GONE else View.VISIBLE
         note.setTextColor(if (m.status == MessageStatus.ERROR) theme.danger else theme.textTertiary)
+        usage.text = usageLine(m)
+        if (m.status == MessageStatus.STREAMING) usage.visibility = View.GONE
     }
 
-    /** Streaming path: only the text changes, nothing is re-measured but the body. */
+    /** Streaming path: reasoning and body text only. */
     fun bindStream(m: Message) {
+        thinking.bind(m)
         body.render(m.content)
-        if (m.content.isNotEmpty() && note.visibility == View.VISIBLE && m.status == MessageStatus.STREAMING) {
-            note.visibility = View.GONE
-        }
+        if (note.visibility == View.VISIBLE && (m.content.isNotEmpty() || !m.reasoning.isNullOrEmpty())) note.visibility = View.GONE
+    }
+
+    private fun usageLine(m: Message): String {
+        val u = m.usage ?: return context.getString(R.string.cut_short).let { "" }
+        val sb = StringBuilder()
+        sb.append(Fmt.tokens(u.promptTokens.toLong())).append(" in · ").append(Fmt.tokens(u.completionTokens.toLong())).append(" out")
+        if (u.reasoningTokens > 0) sb.append(" · ").append(Fmt.tokens(u.reasoningTokens.toLong())).append(" thinking")
+        if (u.cachedTokens > 0) sb.append(" · ").append(Fmt.tokens(u.cachedTokens.toLong())).append(" cached")
+        if (u.cost > 0) sb.append(" · ").append(Fmt.money(u.cost))
+        val ttft = m.firstTokenAt?.let { it - m.createdAt }
+        if (ttft != null && ttft > 0) sb.append(" · ").append(Fmt.duration(ttft)).append(" to first token")
+        return sb.toString()
     }
 
     override fun onThemeChanged(theme: Theme) {
+        who.setTextColor(theme.textTertiary)
+        who.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.CAPTION))
+        usage.setTextColor(theme.textTertiary)
+        usage.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.CAPTION))
+        more.onThemeChanged(theme)
+        thinking.onThemeChanged(theme)
         body.onThemeChanged(theme)
         note.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
+    }
+
+    private companion object {
+        val TIME: DateFormat = DateFormat.getTimeInstance(DateFormat.SHORT)
     }
 }
