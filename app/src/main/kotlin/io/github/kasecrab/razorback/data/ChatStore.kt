@@ -20,6 +20,9 @@ import org.json.JSONException
 /** Conversations and messages on disk. Suspend functions hop to the right dispatcher themselves. */
 class ChatStore(private val db: Db) {
 
+    /** Single-threaded, in order: callers that launch several writes back to back get them applied in sequence. */
+    val writer: kotlinx.coroutines.CoroutineDispatcher get() = db.writer
+
     suspend fun listConversations(query: String = ""): List<Conversation> = withContext(Dispatchers.IO) {
         val out = ArrayList<Conversation>()
         val q = query.trim()

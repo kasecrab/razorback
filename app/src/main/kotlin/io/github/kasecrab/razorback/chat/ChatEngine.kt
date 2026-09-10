@@ -74,6 +74,23 @@ class ChatEngine(
     private val listeners = ArrayList<Listener>(2)
     private val main = Handler(Looper.getMainLooper())
     private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Disk writes run on the store's single writer thread in the order they were launched,
+     * so a message can never reach the database before its conversation. A failed write is
+     * logged, never fatal.
+     */
+    private val disk = CoroutineScope(SupervisorJob() + store.writer)
+
+    private fun persist(what: String, block: suspend () -> Unit) {
+        disk.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                Log.e("could not save $what", e)
+            }
+        }
+    }
     private val ui = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var handle: StreamHandle? = null
     private var job: Job? = null
@@ -136,12 +153,12 @@ class ChatEngine(
             val now = System.currentTimeMillis()
             conv = Conversation(Ids.next(), titleFrom(text), model, now, now)
             conversation = conv
-            if (persist) io.launch { store.insertConversation(conv) }
+            if (persist) persist("conversation") { store.insertConversation(conv) }
             for (l in listeners) l.onConversationChanged()
         }
         messages.add(user)
         val index = messages.size - 1
-        if (persist) io.launch { store.insertMessage(conv.id, index, user) }
+        if (persist) persist("message") { store.insertMessage(conv.id, index, user) }
         for (l in listeners) l.onMessageAdded(index)
         startReply(thinking = thinking, model = model, preferLatency = preferLatency)
     }
@@ -161,7 +178,7 @@ class ChatEngine(
     fun delete(index: Int) {
         if (isStreaming || index !in messages.indices) return
         val m = messages.removeAt(index)
-        if (persist) io.launch { store.deleteMessage(m.id) }
+        if (persist) persist("delete") { store.deleteMessage(m.id) }
         for (l in listeners) l.onMessageRemoved(index)
     }
 
@@ -169,7 +186,7 @@ class ChatEngine(
     fun truncateFrom(index: Int) {
         if (isStreaming || index !in messages.indices) return
         val conv = conversation
-        if (persist && conv != null) io.launch { store.deleteMessagesFrom(conv.id, index) }
+        if (persist && conv != null) persist("truncate") { store.deleteMessagesFrom(conv.id, index) }
         while (messages.size > index) {
             val last = messages.size - 1
             messages.removeAt(last)
@@ -179,7 +196,7 @@ class ChatEngine(
 
     fun rename(conv: Conversation, title: String) {
         conv.title = title
-        io.launch { store.updateConversation(conv) }
+        persist("rename") { store.updateConversation(conv) }
         for (l in listeners) {
             l.onConversationsChanged()
             if (conv.id == conversation?.id) l.onConversationChanged()
@@ -188,13 +205,13 @@ class ChatEngine(
 
     fun setPinned(conv: Conversation, pinned: Boolean) {
         conv.pinned = pinned
-        io.launch { store.updateConversation(conv) }
+        persist("pin") { store.updateConversation(conv) }
         for (l in listeners) l.onConversationsChanged()
     }
 
     fun deleteConversation(conv: Conversation) {
         if (conv.id == conversation?.id) newConversation()
-        io.launch { store.deleteConversation(conv.id) }
+        persist("delete conversation") { store.deleteConversation(conv.id) }
         for (l in listeners) l.onConversationsChanged()
     }
 
@@ -208,7 +225,7 @@ class ChatEngine(
         val reply = Message(Ids.next(), Role.ASSISTANT, model = model, status = MessageStatus.STREAMING)
         messages.add(reply)
         val index = messages.size - 1
-        if (persist) io.launch { store.insertMessage(conv.id, index, reply) }
+        if (persist) persist("reply row") { store.insertMessage(conv.id, index, reply) }
         for (l in listeners) l.onMessageAdded(index)
         val h = StreamHandle()
         handle = h
@@ -321,7 +338,7 @@ class ChatEngine(
             lastPersist = now
             persistedLength += grown
             val snapshot = Message(m.id, m.role, m.content, m.reasoning)
-            io.launch { store.updateContent(snapshot) }
+            persist("partial reply") { store.updateContent(snapshot) }
         }
     }
 
@@ -363,7 +380,7 @@ class ChatEngine(
         if (reply.status == MessageStatus.COMPLETE && calls.isNotEmpty() && !truncatedCall) {
             // Tool round: run every call, append results, ask again. The stream handle stays
             // non-null so the UI keeps showing stop until the final answer lands.
-            if (persist) io.launch { store.updateMessage(reply) }
+            if (persist) persist("tool call") { store.updateMessage(reply) }
             job = io.launch {
                 val results = calls.map { c -> tools.run(c.name, c.arguments) }
                 main.post {
@@ -371,7 +388,7 @@ class ChatEngine(
                         val tm = Message(Ids.next(), Role.TOOL, content = r.output, toolCallId = c.id, status = if (r.isError) MessageStatus.ERROR else MessageStatus.COMPLETE)
                         messages.add(tm)
                         val ti = messages.size - 1
-                        if (persist) io.launch { store.insertMessage(conv.id, ti, tm) }
+                        if (persist) persist("tool result") { store.insertMessage(conv.id, ti, tm) }
                         for (l in listeners) l.onMessageAdded(ti)
                     }
                     handle = null
@@ -388,14 +405,10 @@ class ChatEngine(
             conv.model = reply.model
             val latency = reply.finishedAt!! - started
             val ok = reply.status != MessageStatus.ERROR
-            io.launch {
-                try {
-                    store.updateMessage(reply)
-                    store.updateConversation(conv)
-                    if (reply.usage != null || !ok) store.logUsage(conv.id, reply, latency, ok, acc.generationId, round)
-                } catch (e: Exception) {
-                    Log.e("could not save reply", e)
-                }
+            persist("reply") {
+                store.updateMessage(reply)
+                store.updateConversation(conv)
+                if (reply.usage != null || !ok) store.logUsage(conv.id, reply, latency, ok, acc.generationId, round)
             }
             for (l in listeners) l.onConversationsChanged()
         }
