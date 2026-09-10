@@ -142,6 +142,7 @@
     <string name="notif_done">Reply ready</string>
     <string name="voice_mode">Voice mode</string>
     <string name="voice_listening">Listening</string>
+    <string name="voice_hearing">Hearing you…</string>
     <string name="voice_connecting">Connecting…</string>
     <string name="voice_thinking">Thinking</string>
     <string name="voice_speaking">Speaking</string>

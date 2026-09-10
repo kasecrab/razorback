@@ -28,7 +28,10 @@ class VoiceSession(
     interface Listener {
         fun onStateChanged(state: State)
         fun onUserText(text: String, final: Boolean)
-        fun onAssistantText(text: String)
+        /** A turn has gone to the model; what follows in [onSentence] is its reply. */
+        fun onReplyStarted()
+        /** One sentence, in the form the voice will say it, handed to the speaker. */
+        fun onSentence(spoken: String)
         fun onError(message: String)
     }
 
@@ -172,6 +175,7 @@ class VoiceSession(
         spokenChars = 0
         awaitingFlush = false
         state = State.THINKING
+        listener?.onReplyStarted()
         if (engine.isStreaming) {
             // The cut-off reply has not let go of the stream yet; the engine would drop a
             // send now. The turn waits for the stream to end and goes out then.
@@ -195,7 +199,6 @@ class VoiceSession(
             if (spokenChars == 0) Log.d { "voice: first token ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
             chunker.push(content.substring(spokenChars))
             spokenChars = content.length
-            listener?.onAssistantText(content)
         }
         if (!streaming) {
             chunker.flush()
@@ -234,6 +237,7 @@ class VoiceSession(
         val text = SpeechText.strip(sentence)
         if (text.isBlank()) return
         Log.d { "voice: sentence of ${text.length} chars to aura ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
+        listener?.onSentence(text)
         tts.speak(text)
         // Aura only returns audio for text that has been flushed; one flush per sentence
         // means the first sentence plays while the model is still writing the rest.

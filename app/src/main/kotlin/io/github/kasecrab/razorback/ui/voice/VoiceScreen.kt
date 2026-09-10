@@ -5,13 +5,14 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.TypedValue
 import android.view.Gravity
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.R
 import io.github.kasecrab.razorback.core.Keys
+import io.github.kasecrab.razorback.model.MessageStatus
+import io.github.kasecrab.razorback.model.Role
 import io.github.kasecrab.razorback.ui.core.Fonts
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.Theme
@@ -23,34 +24,36 @@ import io.github.kasecrab.razorback.ui.orb.Orb
 import io.github.kasecrab.razorback.ui.orb.OrbView
 import io.github.kasecrab.razorback.ui.orb.Orbs
 import io.github.kasecrab.razorback.ui.widget.IconButton
-import io.github.kasecrab.razorback.voice.VoiceSession
+import io.github.kasecrab.razorback.voice.SpeechText
 import io.github.kasecrab.razorback.voice.VoiceService
+import io.github.kasecrab.razorback.voice.VoiceSession
 
-/** The spoken conversation: an orb that breathes with the audio, captions, mute and end. */
+/**
+ * The spoken conversation: an orb that breathes with the audio, the whole transcript
+ * beneath it with the words lighting up as they are said, and mute, orb style and end.
+ */
 class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
     private val app = App.instance
     private val voice = app.voice
-    private val orb = OrbView(context)
+    private val column = LinearLayout(context)
     private val status = TextView(context)
-    private val userCaption = TextView(context)
-    private val assistantCaption = TextView(context)
+    private val orb = OrbView(context)
+    private val transcript = TranscriptView(context)
     private val mute = IconButton(context)
     private val style = IconButton(context)
     private val end = IconButton(context)
     private val controls = LinearLayout(context)
-    private val captions = LinearLayout(context)
     private var muted = false
 
     init {
         keepScreenOn = true
-        orb.orb = if (app.prefs[Keys.REDUCE_MOTION]) Orbs.byId("lattice") else Orbs.byId(app.prefs[Keys.VOICE_ORB])
-        orb.inLevel = { voice.inLevel }
-        orb.outLevel = { voice.outLevel }
-        addView(orb, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        column.orientation = LinearLayout.VERTICAL
+        column.gravity = Gravity.CENTER_HORIZONTAL
 
         status.typeface = Fonts.medium
         status.gravity = Gravity.CENTER
+        status.setPadding(dp(16), dp(16), dp(16), 0)
         if (io.github.kasecrab.razorback.BuildConfig.DEBUG) {
             // Long-press the status line to type a turn when there is no microphone to speak into.
             status.setOnLongClickListener {
@@ -58,23 +61,19 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
                 true
             }
         }
-        addView(status, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = dp(24) })
+        column.addView(status, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
-        captions.orientation = LinearLayout.VERTICAL
-        captions.gravity = Gravity.CENTER_HORIZONTAL
-        captions.setPadding(dp(28), 0, dp(28), 0)
-        userCaption.typeface = Fonts.regular
-        userCaption.gravity = Gravity.CENTER
-        userCaption.maxLines = 3
-        assistantCaption.typeface = Fonts.regular
-        assistantCaption.gravity = Gravity.CENTER
-        assistantCaption.maxLines = 4
-        captions.addView(userCaption, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        captions.addView(assistantCaption, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
-        addView(captions, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply { bottomMargin = dp(120) })
+        orb.orb = if (app.prefs[Keys.REDUCE_MOTION]) Orbs.byId("lattice") else Orbs.byId(app.prefs[Keys.VOICE_ORB])
+        orb.inLevel = { voice.inLevel }
+        orb.outLevel = { voice.outLevel }
+        val side = minOf(dp(240), (resources.displayMetrics.widthPixels * 0.5f).toInt())
+        column.addView(orb, LinearLayout.LayoutParams(side, side).apply { topMargin = dp(4); bottomMargin = dp(4) })
+
+        column.addView(transcript, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
 
         controls.orientation = LinearLayout.HORIZONTAL
         controls.gravity = Gravity.CENTER
+        controls.setPadding(0, dp(12), 0, dp(24))
         mute.iconRes = R.drawable.ic_mic
         mute.filled = true
         mute.tone = IconButton.Tone.PRIMARY
@@ -93,16 +92,31 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         end.contentDescription = context.getString(R.string.voice_end)
         end.setOnClickListener { context.nav.pop() }
         controls.addView(end, LinearLayout.LayoutParams(dp(60), dp(60)))
-        addView(controls, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply { bottomMargin = dp(36) })
+        column.addView(controls, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
     override fun onEnter() {
         voice.listener = this
+        fillHistory()
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             begin()
         } else {
             context.ui().permissions.request(Manifest.permission.RECORD_AUDIO) { granted ->
                 if (granted) begin() else context.nav.pop()
+            }
+        }
+    }
+
+    /** What was already said in this chat, typed or spoken, so the conversation has its past. */
+    private fun fillHistory() {
+        transcript.clear()
+        for (m in app.engine.messages) {
+            if (m.status == MessageStatus.ERROR || m.content.isBlank()) continue
+            when (m.role) {
+                Role.USER -> transcript.addHistory(m.content, fromUser = true)
+                Role.ASSISTANT -> transcript.addHistory(SpeechText.strip(m.content), fromUser = false)
+                else -> {}
             }
         }
     }
@@ -134,11 +148,8 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         super.onThemeChanged(theme)
         status.setTextColor(theme.textSecondary)
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
-        userCaption.setTextColor(theme.textSecondary)
-        userCaption.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
-        assistantCaption.setTextColor(theme.textPrimary)
-        assistantCaption.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
         orb.onThemeChanged(theme)
+        transcript.onThemeChanged(theme)
     }
 
     // VoiceSession.Listener
@@ -146,7 +157,8 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     override fun onStateChanged(state: VoiceSession.State) {
         status.text = when (state) {
             VoiceSession.State.IDLE, VoiceSession.State.CONNECTING -> context.getString(R.string.voice_connecting)
-            VoiceSession.State.LISTENING, VoiceSession.State.USER_SPEAKING -> context.getString(R.string.voice_listening)
+            VoiceSession.State.LISTENING -> context.getString(R.string.voice_listening)
+            VoiceSession.State.USER_SPEAKING -> context.getString(R.string.voice_hearing)
             VoiceSession.State.THINKING -> context.getString(R.string.voice_thinking)
             VoiceSession.State.SPEAKING -> context.getString(R.string.voice_speaking)
             VoiceSession.State.RECONNECTING -> context.getString(R.string.voice_reconnecting)
@@ -159,17 +171,14 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
             VoiceSession.State.SPEAKING -> Orb.SPEAKING
             else -> Orb.IDLE
         }
-        if (state == VoiceSession.State.THINKING) assistantCaption.text = ""
+        if (state == VoiceSession.State.LISTENING) transcript.endReply()
     }
 
-    override fun onUserText(text: String, final: Boolean) {
-        userCaption.text = text
-        userCaption.alpha = if (final) 0.7f else 1f
-    }
+    override fun onUserText(text: String, final: Boolean) = transcript.userSaid(text, final)
 
-    override fun onAssistantText(text: String) {
-        assistantCaption.text = if (text.length > 220) "…" + text.takeLast(220) else text
-    }
+    override fun onReplyStarted() = transcript.startReply()
+
+    override fun onSentence(spoken: String) = transcript.replySentence(spoken)
 
     override fun onError(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
