@@ -4,7 +4,9 @@ import android.content.Context
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
+import android.widget.FrameLayout
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -17,6 +19,7 @@ import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.widget.Chip
 import io.github.kasecrab.razorback.ui.widget.IconButton
+import io.github.kasecrab.razorback.ui.widget.LevelRing
 import io.github.kasecrab.razorback.ui.widget.Shapes
 
 /**
@@ -32,6 +35,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
     val dictate = IconButton(context)
     val primary = IconButton(context)
     val strip = AttachStrip(context)
+    private val ring = LevelRing(context)
 
     val dictation = Dictation(context, input)
     var onSend: ((String, List<AttachStrip.Pending>) -> Unit)? = null
@@ -103,8 +107,12 @@ class Composer(context: Context) : LinearLayout(context), Themed {
                 false
             }
         }
-        dictation.onStateChanged = { on -> dictate.tone = if (on) IconButton.Tone.ACCENT else IconButton.Tone.SECONDARY }
-        row.addView(dictate, LayoutParams(dp(40), dp(40)))
+        dictation.onStateChanged = { state -> showListening(state) }
+        ring.level = { dictation.level }
+        val micHost = FrameLayout(context)
+        micHost.addView(ring, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
+        micHost.addView(dictate, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER))
+        row.addView(micHost, LayoutParams(dp(48), dp(48)))
 
         primary.filled = true
         primary.tone = IconButton.Tone.ON_ACCENT
@@ -131,6 +139,22 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         }
         updatePrimary()
         onThemeChanged(context.appTheme)
+    }
+
+    /** The mic button breathes and the field says so, because a colour change alone reads as nothing. */
+    private fun showListening(state: Dictation.State) {
+        val on = state != Dictation.State.OFF
+        dictate.tone = if (on) IconButton.Tone.ACCENT else IconButton.Tone.SECONDARY
+        ring.waiting = state == Dictation.State.CONNECTING
+        ring.active = on
+        input.setHint(
+            when (state) {
+                Dictation.State.OFF -> R.string.composer_hint
+                Dictation.State.CONNECTING -> R.string.voice_connecting
+                Dictation.State.LISTENING -> R.string.dictation_listening
+            },
+        )
+        dictate.performHapticFeedback(if (on) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.CONTEXT_CLICK)
     }
 
     fun updatePrimary() {

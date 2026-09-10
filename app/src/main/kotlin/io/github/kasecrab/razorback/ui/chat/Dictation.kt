@@ -28,9 +28,21 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
     private var ghostStart = -1
     private var ghostEnd = -1
     private var settle: Runnable? = null
-    var onStateChanged: ((Boolean) -> Unit)? = null
+
+    enum class State { OFF, CONNECTING, LISTENING }
+
+    var onStateChanged: ((State) -> Unit)? = null
+    var state: State = State.OFF
+        private set(value) {
+            if (field == value) return
+            field = value
+            onStateChanged?.invoke(value)
+        }
 
     val isListening: Boolean get() = mic.isRunning
+
+    /** Microphone level, 0..1. */
+    val level: Float get() = mic.level.get() / 1000f
 
     init {
         link.listener = this
@@ -59,7 +71,7 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
             return
         }
         link.listen(true)
-        onStateChanged?.invoke(true)
+        state = if (link.state == DictationLink.State.LISTENING) State.LISTENING else State.CONNECTING
     }
 
     fun stop() {
@@ -67,7 +79,7 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
         mic.stop()
         link.listen(false)
         spoken.release(System.currentTimeMillis())
-        onStateChanged?.invoke(false)
+        state = State.OFF
         scheduleSettle()
     }
 
@@ -75,6 +87,7 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
     fun release() {
         mic.stop()
         link.stop()
+        state = State.OFF
         settle?.let { edit.removeCallbacks(it) }
         clearGhost()
     }
@@ -109,7 +122,10 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
         showGhost("")
     }
 
-    override fun onState(state: DictationLink.State) {}
+    override fun onState(state: DictationLink.State) {
+        if (!mic.isRunning) return
+        this.state = if (state == DictationLink.State.LISTENING || state == DictationLink.State.READY) State.LISTENING else State.CONNECTING
+    }
 
     override fun onError(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
