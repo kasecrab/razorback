@@ -10,7 +10,8 @@ interface Ears {
 
     interface Listener {
         fun onConnected()
-        fun onTurn(kind: Turn, transcript: String, turnIndex: Int)
+        /** [confidence] is the transcriber's own, 0..1, or 1 when it gives none. */
+        fun onTurn(kind: Turn, transcript: String, turnIndex: Int, confidence: Float)
         fun onDropped(reconnecting: Boolean)
         fun onError(message: String)
     }

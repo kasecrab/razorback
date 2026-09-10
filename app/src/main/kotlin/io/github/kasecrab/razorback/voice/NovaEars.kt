@@ -38,6 +38,7 @@ class NovaEars(
     private val spoken = Spoken()
     private var turnOpen = false
     private var turnIndex = 0
+    private var confidence = 1f
 
     override fun start() {
         if (armed) return
@@ -133,25 +134,29 @@ class NovaEars(
         }
         when (json.str("type")) {
             "Results" -> {
-                val transcript = json.obj("channel")?.arr("alternatives")?.optJSONObject(0)?.str("transcript")?.trim().orEmpty()
+                val alt = json.obj("channel")?.arr("alternatives")?.optJSONObject(0)
+                val transcript = alt?.str("transcript")?.trim().orEmpty()
+                val conf = (alt?.optDouble("confidence", 1.0) ?: 1.0).toFloat()
                 val isFinal = json.bool("is_final") ?: false
                 val speechFinal = json.bool("speech_final") ?: false
-                main.post { results(transcript, isFinal, speechFinal) }
+                main.post { results(transcript, conf, isFinal, speechFinal) }
             }
             "UtteranceEnd" -> main.post { endTurn() }
             "Error" -> Log.w("nova: $text")
         }
     }
 
-    private fun results(transcript: String, isFinal: Boolean, speechFinal: Boolean) {
+    private fun results(transcript: String, conf: Float, isFinal: Boolean, speechFinal: Boolean) {
         if (transcript.isNotEmpty()) {
             if (isFinal) spoken.final(transcript) else spoken.interim(transcript)
             val text = spoken.text
+            // The turn's confidence is the lowest of its finals; a muffled echo scores low.
+            confidence = if (!turnOpen) conf else if (isFinal) minOf(confidence, conf) else confidence
             if (!turnOpen) {
                 turnOpen = true
-                listener?.onTurn(Ears.Turn.START, text, turnIndex)
+                listener?.onTurn(Ears.Turn.START, text, turnIndex, conf)
             } else {
-                listener?.onTurn(Ears.Turn.UPDATE, text, turnIndex)
+                listener?.onTurn(Ears.Turn.UPDATE, text, turnIndex, conf)
             }
         } else if (isFinal) {
             spoken.utteranceEnd()
@@ -162,9 +167,11 @@ class NovaEars(
     private fun endTurn() {
         if (!turnOpen) return
         val text = spoken.committed.ifEmpty { spoken.text }
+        val conf = confidence
         spoken.clear()
         turnOpen = false
-        listener?.onTurn(Ears.Turn.END, text, turnIndex)
+        confidence = 1f
+        listener?.onTurn(Ears.Turn.END, text, turnIndex, conf)
         turnIndex++
     }
 }

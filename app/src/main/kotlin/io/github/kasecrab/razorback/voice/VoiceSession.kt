@@ -82,6 +82,7 @@ class VoiceSession(
     private var pendingTurn: String? = null
     /** Words the voice has been given this reply, to tell the speaker's echo from the person. */
     private val spokenWords = HashSet<String>(256)
+    private val spokenStems = HashSet<String>(256)
     /** Speech heard over the reply that has not yet proved to be the person rather than the speaker. */
     private var tentative = false
 
@@ -140,8 +141,8 @@ class VoiceSession(
     /** Debug builds only: feed a turn as if the person had said it, for phones and emulators without a usable mic. */
     fun injectTurn(text: String) {
         if (!io.github.kasecrab.razorback.BuildConfig.DEBUG || !isActive) return
-        onTurn(Ears.Turn.START, text, -1)
-        onTurn(Ears.Turn.END, text, -1)
+        onTurn(Ears.Turn.START, text, -1, 1f)
+        onTurn(Ears.Turn.END, text, -1, 1f)
     }
 
     fun setMuted(on: Boolean) {
@@ -161,7 +162,7 @@ class VoiceSession(
         if (state == State.CONNECTING || state == State.RECONNECTING) state = State.LISTENING
     }
 
-    override fun onTurn(kind: Ears.Turn, transcript: String, turnIndex: Int) {
+    override fun onTurn(kind: Ears.Turn, transcript: String, turnIndex: Int, confidence: Float) {
         when (kind) {
             Ears.Turn.START -> {
                 if (busy) {
@@ -195,8 +196,10 @@ class VoiceSession(
                         interrupt()
                     }
                 }
-                // The transcript of an echo lands after the speaker has gone quiet.
+                // The transcript of an echo lands after the speaker has gone quiet, and a
+                // muffled echo the transcriber half-understood scores low and short.
                 if (!busy && isEcho(transcript)) return
+                if (recentlySpoke() && (confidence < DOUBTFUL || wordCount(transcript) < 2)) return
                 if (transcript.isBlank()) {
                     if (state == State.USER_SPEAKING) state = State.LISTENING
                     return
@@ -214,14 +217,16 @@ class VoiceSession(
     private fun surelyThePerson(transcript: String): Boolean = wordCount(transcript) >= 2 && !isEcho(transcript)
 
     /** True when most of what was heard is what the voice has just been saying. */
+    private fun recentlySpoke(): Boolean = playback.isPlaying || SystemClock.elapsedRealtime() - playbackEndedAt < ECHO_WORDS_MS
+
     private fun isEcho(transcript: String): Boolean {
-        val recentlySpoke = playback.isPlaying || SystemClock.elapsedRealtime() - playbackEndedAt < ECHO_WORDS_MS
-        if (state != State.SPEAKING && !recentlySpoke) return false
+        if (state != State.SPEAKING && !recentlySpoke()) return false
         var total = 0
         var known = 0
         for (w in words(transcript)) {
             total++
-            if (w in spokenWords) known++
+            // Echo is muffled, so a word counts when its stem matches too.
+            if (w in spokenWords || (w.length >= 4 && w.substring(0, 4) in spokenStems)) known++
         }
         return total > 0 && known * 10 >= total * 6
     }
@@ -265,7 +270,9 @@ class VoiceSession(
 
     /** How loud the speaker comes back through the microphone, as a share of the level sent out. */
     @Volatile private var echoRatio = ECHO_RATIO_FLOOR
-    private var outHold = 0f
+    /** Levels of the last chunks written to the speaker; the echo of any of them may be arriving now. */
+    private val outRecent = FloatArray(OUT_WINDOW)
+    private var outAt = 0
     private var passUntil = 0L
     private val silence = ByteArray(MicCapture.CHUNK_BYTES)
 
@@ -283,10 +290,15 @@ class VoiceSession(
 
     private fun passes(len: Int): Boolean {
         val now = SystemClock.elapsedRealtime()
-        val out = playback.level.get().toFloat()
-        outHold = maxOf(out, outHold * 0.6f)
+        outRecent[outAt] = playback.level.get().toFloat()
+        outAt = (outAt + 1) % OUT_WINDOW
         val speakerBusy = playback.isPlaying || now - playbackEndedAt < ECHO_TAIL_MS
-        if (!speakerBusy || outHold < 20f) return true
+        if (!speakerBusy) return true
+        // The loudest of the last several chunks: what was written a moment ago is what
+        // is coming back now, and a pause between sentences is no reason to trust the mic.
+        var outHold = 0f
+        for (v in outRecent) if (v > outHold) outHold = v
+        if (outHold < 20f) return true
         val heard = mic.level.get().toFloat()
         val since = now - playbackStartedAt
         if (since < CALIBRATE_MS) {
@@ -294,11 +306,14 @@ class VoiceSession(
             return false
         }
         val expected = echoRatio * outHold
-        if (heard > expected * 1.7f + 40f) {
+        if (heard > expected * MARGIN + 40f) {
             passUntil = now + HANGOVER_MS
             return true
         }
-        return now < passUntil
+        // Judged echo: let the estimate creep up so a loud syllable later does not fool it.
+        echoRatio = maxOf(echoRatio, 0.85f * heard / outHold)
+        // The tail of a cut-in goes through only while it is still above the echo itself.
+        return now < passUntil && heard > expected * 1.1f + 20f
     }
 
     private var askedAt = 0L
@@ -313,6 +328,7 @@ class VoiceSession(
         tentative = false
         cuePending = false
         spokenWords.clear()
+        spokenStems.clear()
         replyStartBytes = playback.enqueuedBytes.get()
         main.removeCallbacks(slowThinking)
         main.postDelayed(slowThinking, SLOW_THINKING_MS)
@@ -416,7 +432,10 @@ class VoiceSession(
         if (text.isBlank()) return
         Log.d { "voice: sentence of ${text.length} chars to aura ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
         clock.sentence(text)
-        for (w in words(text)) spokenWords.add(w)
+        for (w in words(text)) {
+            spokenWords.add(w)
+            if (w.length >= 4) spokenStems.add(w.substring(0, 4))
+        }
         listener?.onSentence(text)
         tts.speak(text)
         // Aura only returns audio for text that has been flushed; one flush per sentence
@@ -431,13 +450,16 @@ class VoiceSession(
         if (replyIndex < 0) return
         val first = !playback.isPlaying
         clock.audio(data.size)
+        if (first) {
+            // Set here, before the audio can reach the speaker, so the gate calibrates from the first chunk.
+            playbackStartedAt = SystemClock.elapsedRealtime()
+            echoRatio = maxOf(ECHO_RATIO_FLOOR, echoRatio * 0.9f)
+            java.util.Arrays.fill(outRecent, 0f)
+        }
         playback.enqueue(data)
         if (first) {
             context.mainExecutor.execute {
-                if (playbackStartedAt < askedAt) Log.d { "voice: first tts audio ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
-                playbackStartedAt = SystemClock.elapsedRealtime()
-                // The leak measured last time is a starting point, not gospel: let it settle again.
-                echoRatio = maxOf(ECHO_RATIO_FLOOR, echoRatio * 0.9f)
+                Log.d { "voice: first tts audio ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
                 // A cue while searching keeps the searching status; the answer itself is speaking.
                 if (state == State.THINKING || (state == State.SEARCHING && !toolRound)) {
                     state = State.SPEAKING
@@ -486,10 +508,15 @@ class VoiceSession(
         val THINK_CUES = listOf("Let me think about that for a second.", "Hmm, give me a moment.", "Okay, let me think.")
         const val SLOW_THINKING_MS = 2500L
         const val ECHO_RATIO_FLOOR = 0.05f
-        const val CALIBRATE_MS = 500L
+        const val CALIBRATE_MS = 600L
         const val HANGOVER_MS = 700L
-        const val ECHO_TAIL_MS = 500L
-        const val ECHO_WORDS_MS = 2500L
+        /** Track buffer, air and input latency together; the last word is still arriving well after the end marker. */
+        const val ECHO_TAIL_MS = 1200L
+        const val ECHO_WORDS_MS = 3000L
+        const val MARGIN = 2.2f
+        /** Chunks of 80 ms: 640 ms of recent speaker level. */
+        const val OUT_WINDOW = 8
+        const val DOUBTFUL = 0.6f
         val NON_WORD = Regex("[^\\p{L}\\p{N}']+")
     }
 

@@ -130,7 +130,7 @@ class SttLink(
                 }
                 val transcript = json.str("transcript")?.trim().orEmpty()
                 val index = json.optInt("turn_index", 0)
-                main.post { listener?.onTurn(kind, transcript, index) }
+                main.post { listener?.onTurn(kind, transcript, index, 1f) }
             }
             "Error" -> Log.w("flux: $text")
         }
