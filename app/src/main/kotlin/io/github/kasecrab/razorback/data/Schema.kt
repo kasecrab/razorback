@@ -1,0 +1,81 @@
+package io.github.kasecrab.razorback.data
+
+/** Statements per schema version; onUpgrade replays every version after the installed one. */
+object Schema {
+    const val VERSION = 1
+
+    val versions: List<List<String>> = listOf(
+        listOf(
+            """CREATE TABLE conversations(
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                model TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                archived INTEGER NOT NULL DEFAULT 0)""",
+            "CREATE INDEX idx_conv_order ON conversations(pinned DESC, updated_at DESC)",
+            """CREATE TABLE messages(
+                id TEXT PRIMARY KEY,
+                conv_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                seq INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                reasoning TEXT,
+                reasoning_details TEXT,
+                tool_calls TEXT,
+                tool_call_id TEXT,
+                images TEXT,
+                model TEXT,
+                status TEXT NOT NULL,
+                error TEXT,
+                prompt_tokens INTEGER,
+                completion_tokens INTEGER,
+                reasoning_tokens INTEGER,
+                cached_tokens INTEGER,
+                cost REAL,
+                created_at INTEGER NOT NULL,
+                finished_at INTEGER,
+                first_token_at INTEGER,
+                reasoning_ended_at INTEGER)""",
+            "CREATE INDEX idx_msg_conv ON messages(conv_id, seq)",
+            """CREATE TABLE usage_log(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts INTEGER NOT NULL,
+                conv_id TEXT,
+                message_id TEXT,
+                model TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+                cached_tokens INTEGER NOT NULL DEFAULT 0,
+                cost REAL NOT NULL DEFAULT 0,
+                latency_ms INTEGER,
+                ttft_ms INTEGER,
+                ok INTEGER NOT NULL DEFAULT 1,
+                error TEXT,
+                generation_id TEXT,
+                tool_round INTEGER NOT NULL DEFAULT 0)""",
+            "CREATE INDEX idx_usage_ts ON usage_log(ts)",
+            "CREATE INDEX idx_usage_model ON usage_log(model, ts)",
+            """CREATE TABLE prompts(
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                text TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL)""",
+            """CREATE TABLE attachments(
+                id TEXT PRIMARY KEY,
+                message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL,
+                mime TEXT NOT NULL,
+                file TEXT NOT NULL,
+                width INTEGER,
+                height INTEGER,
+                bytes INTEGER,
+                source TEXT NOT NULL,
+                created_at INTEGER NOT NULL)""",
+            "CREATE INDEX idx_att_msg ON attachments(message_id)",
+        ),
+    )
+}

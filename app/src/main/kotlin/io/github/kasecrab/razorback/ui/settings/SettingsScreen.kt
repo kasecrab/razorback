@@ -28,6 +28,8 @@ class SettingsScreen(context: Context) : Screen(context) {
         addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
 
         row(R.drawable.ic_key, R.string.providers, R.string.providers_subtitle) { context.nav.push(ProvidersScreen(context)) }
+        row(R.drawable.ic_globe, R.string.usage, R.string.usage_subtitle) { context.nav.push(UsageScreen(context)) }
+        row(R.drawable.ic_waveform, R.string.stats, R.string.stats_subtitle) { context.nav.push(StatsScreen(context)) }
     }
 
     private fun row(icon: Int, title: Int, subtitle: Int, onClick: () -> Unit) {

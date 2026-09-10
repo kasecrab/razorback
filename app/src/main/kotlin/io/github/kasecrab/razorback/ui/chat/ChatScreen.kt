@@ -29,6 +29,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.view.Gravity
 import io.github.kasecrab.razorback.model.Role
+import io.github.kasecrab.razorback.model.Conversation
+import io.github.kasecrab.razorback.ui.widget.InputSheet
+import kotlinx.coroutines.Job
 
 class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
@@ -36,6 +39,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     private val engine = app.engine
     private val onPref: (String) -> Unit = { if (it == Keys.MODEL.name || it == Keys.THINKING.name) refreshChips() }
     private val onCatalog: () -> Unit = { refreshChips() }
+    private var listJob: Job? = null
     private val drawer = DrawerHost(context)
     private val panel = DrawerPanel(context)
     private val column = LinearLayout(context)
@@ -104,6 +108,11 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
             true
         }
         composer.thinkingChip.setOnClickListener { ThinkingLevelSheet(context).show() }
+        composer.temporaryChip.setOnClickListener {
+            val on = !engine.temporary
+            engine.newConversation()
+            engine.temporary = on
+        }
         column.addView(
             composer,
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
@@ -115,6 +124,12 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
             drawer.close()
             engine.newConversation()
         }
+        panel.onOpen = {
+            drawer.close()
+            engine.open(it)
+        }
+        panel.onMenu = { showConversationMenu(it) }
+        panel.search.onTextChanged = { reloadConversations() }
         panel.settings.setOnClickListener {
             drawer.close()
             context.nav.push(SettingsScreen(context))
@@ -123,7 +138,10 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         drawer.panel = panel
         drawer.addView(column)
         drawer.addView(panel)
-        drawer.onOpenChanged = { context.ui().back.invalidate() }
+        drawer.onOpenChanged = {
+            context.ui().back.invalidate()
+            if (it) reloadConversations()
+        }
         addView(drawer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         refreshEmpty()
     }
@@ -137,7 +155,35 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         composer.streaming = engine.isStreaming
         refreshEmpty()
         refreshChips()
+        refreshTitle()
+        reloadConversations()
         context.uiScope.launch { app.catalog.load() }
+    }
+
+    private fun reloadConversations() {
+        listJob?.cancel()
+        listJob = context.uiScope.launch {
+            val convs = app.store.listConversations(panel.search.text)
+            panel.setConversations(convs, engine.conversation?.id)
+        }
+    }
+
+    private fun refreshTitle() {
+        bar.title.text = engine.conversation?.title
+            ?: context.getString(if (engine.temporary) R.string.temporary_chat else R.string.app_name)
+        composer.temporaryChip.active = engine.temporary
+    }
+
+    private fun showConversationMenu(conv: Conversation) {
+        val sheet = ActionSheet(context)
+        sheet.add(R.drawable.ic_star, context.getString(if (conv.pinned) R.string.action_unpin else R.string.action_pin)) {
+            engine.setPinned(conv, !conv.pinned)
+        }
+        sheet.add(R.drawable.ic_edit, context.getString(R.string.action_rename)) {
+            InputSheet(context, context.getString(R.string.rename_chat), conv.title) { engine.rename(conv, it) }.show()
+        }
+        sheet.add(R.drawable.ic_trash, context.getString(R.string.action_delete), danger = true) { engine.deleteConversation(conv) }
+        sheet.show()
     }
 
     override fun onExit() {
@@ -225,4 +271,8 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     override fun onStreamingChanged(streaming: Boolean) {
         composer.streaming = streaming
     }
+
+    override fun onConversationChanged() = refreshTitle()
+
+    override fun onConversationsChanged() = reloadConversations()
 }

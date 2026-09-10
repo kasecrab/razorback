@@ -63,7 +63,7 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
         onThemeChanged(context.appTheme)
     }
 
-    fun show() {
+    open fun show() {
         if (shown) return
         shown = true
         val ui = context.ui()
