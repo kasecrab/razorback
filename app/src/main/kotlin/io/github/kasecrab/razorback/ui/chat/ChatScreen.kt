@@ -176,7 +176,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     }
 
     private fun refreshTitle() {
-        bar.setSubtitle(engine.conversation?.title ?: if (engine.temporary) context.getString(R.string.temporary_chat) else null)
+        bar.setSubtitle(if (engine.temporary) context.getString(R.string.temporary_chat) else engine.conversation?.title)
         composer.temporaryChip.active = engine.temporary
     }
 
