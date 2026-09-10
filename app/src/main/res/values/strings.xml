@@ -22,7 +22,8 @@
     <string name="brave">Brave Search</string>
     <string name="exa">Exa</string>
     <string name="verify">Verify</string>
-    <string name="get_key">Get a key</string>
+    <string name="key_missing">Enter a key first</string>
+    <string name="key_ok_search">Key ok · %d result for a test search</string>
     <string name="verifying">Checking…</string>
     <string name="cd_back">Back</string>
     <string name="cd_settings">Settings</string>

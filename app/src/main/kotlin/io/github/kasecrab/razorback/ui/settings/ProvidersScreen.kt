@@ -1,18 +1,18 @@
 package io.github.kasecrab.razorback.ui.settings
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.R
+import io.github.kasecrab.razorback.core.Keys
 import io.github.kasecrab.razorback.core.Secrets
 import io.github.kasecrab.razorback.provider.openrouter.AccountInfo
-import io.github.kasecrab.razorback.provider.openrouter.OpenRouter
 import io.github.kasecrab.razorback.provider.openrouter.OpenRouterAccount
+import io.github.kasecrab.razorback.tools.search.BraveSearch
+import io.github.kasecrab.razorback.tools.search.ExaSearch
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
@@ -22,20 +22,20 @@ import io.github.kasecrab.razorback.ui.widget.Chip
 import io.github.kasecrab.razorback.ui.widget.SectionHeader
 import io.github.kasecrab.razorback.ui.widget.TextField
 import io.github.kasecrab.razorback.ui.widget.TopBar
+import io.github.kasecrab.razorback.voice.DeepgramAccount
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-/** One field per vendor key. Keys are saved as they are typed and verified on demand. */
+/** One field per vendor key. Keys are saved as they are typed; each has its own verify. */
 class ProvidersScreen(context: Context) : Screen(context) {
 
     private val secrets = App.instance.secrets
     private val bar = TopBar(context)
     private val list = LinearLayout(context)
-    private val status = Caption(context)
-    private var verifyJob: Job? = null
+    private val jobs = ArrayList<Job>(4)
 
     init {
         val column = LinearLayout(context)
@@ -53,42 +53,22 @@ class ProvidersScreen(context: Context) : Screen(context) {
         addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
 
         header(R.string.openrouter)
-        val openrouter = field(Secrets.OPENROUTER, R.string.key_hint_openrouter)
-        val actions = LinearLayout(context)
-        actions.orientation = LinearLayout.HORIZONTAL
-        actions.gravity = Gravity.CENTER_VERTICAL
-        actions.setPadding(dp(16), dp(10), dp(16), 0)
-        val verify = Chip(context)
-        verify.style = Chip.Style.ACCENT
-        verify.leadingIcon = R.drawable.ic_check
-        verify.setText(R.string.verify)
-        verify.setOnClickListener { verify(openrouter.text) }
-        actions.addView(verify, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)))
-        val getKey = Chip(context)
-        getKey.style = Chip.Style.PLAIN
-        getKey.trailingIcon = R.drawable.ic_external
-        getKey.setText(R.string.get_key)
-        getKey.setOnClickListener { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(OpenRouter.KEYS_URL))) }
-        actions.addView(getKey, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)).apply { marginStart = dp(8) })
-        list.addView(actions, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        status.setPadding(dp(16), dp(8), dp(16), 0)
-        status.visibility = View.GONE
-        list.addView(status, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        key(Secrets.OPENROUTER, R.string.key_hint_openrouter) { describe(OpenRouterAccount.fetch(it)) }
 
         header(R.string.deepgram)
-        field(Secrets.DEEPGRAM, R.string.key_hint_generic)
+        key(Secrets.DEEPGRAM, R.string.key_hint_generic) { DeepgramAccount.check(it) }
 
         header(R.string.web_search)
         val toggle = SwitchRow(context)
         val prefs = App.instance.prefs
-        toggle.set(context.getString(R.string.web_search_toggle), context.getString(R.string.web_search_toggle_hint), prefs[io.github.kasecrab.razorback.core.Keys.WEB_SEARCH]) {
-            prefs[io.github.kasecrab.razorback.core.Keys.WEB_SEARCH] = it
+        toggle.set(context.getString(R.string.web_search_toggle), context.getString(R.string.web_search_toggle_hint), prefs[Keys.WEB_SEARCH]) {
+            prefs[Keys.WEB_SEARCH] = it
         }
         list.addView(toggle, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         caption(R.string.brave)
-        field(Secrets.BRAVE, R.string.key_hint_generic)
+        key(Secrets.BRAVE, R.string.key_hint_generic) { searched(BraveSearch.search(it, "razorback", 1).size) }
         caption(R.string.exa)
-        field(Secrets.EXA, R.string.key_hint_generic)
+        key(Secrets.EXA, R.string.key_hint_generic) { searched(ExaSearch.search(it, "razorback", 1).size) }
     }
 
     private fun header(res: Int) {
@@ -104,40 +84,54 @@ class ProvidersScreen(context: Context) : Screen(context) {
         list.addView(c, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
-    private fun field(name: String, hint: Int): TextField {
+    /** A masked field, a verify chip and a status line; [check] runs off the main thread and returns what to show. */
+    private fun key(name: String, hint: Int, check: (String) -> String) {
         val f = TextField(context)
         f.secret = true
         f.setHint(hint)
         f.text = secrets.get(name) ?: ""
         f.onTextChanged = { secrets.put(name, it) }
-        list.addView(
-            f,
-            LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-                marginStart = dp(16)
-                marginEnd = dp(16)
-            },
-        )
-        return f
-    }
-
-    private fun verify(key: String) {
-        verifyJob?.cancel()
-        status.visibility = View.VISIBLE
-        status.tone = Caption.Tone.NORMAL
-        status.setText(R.string.verifying)
-        verifyJob = context.uiScope.launch {
-            val result = runCatching { withContext(Dispatchers.IO) { OpenRouterAccount.fetch(key.trim()) } }
-            result.onSuccess { status.text = describe(it) }
-            result.onFailure {
+        list.addView(f, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { marginStart = dp(16); marginEnd = dp(16) })
+        val actions = LinearLayout(context)
+        actions.orientation = LinearLayout.HORIZONTAL
+        actions.gravity = Gravity.CENTER_VERTICAL
+        actions.setPadding(dp(16), dp(10), dp(16), 0)
+        val verify = Chip(context)
+        verify.style = Chip.Style.ACCENT
+        verify.leadingIcon = R.drawable.ic_check
+        verify.setText(R.string.verify)
+        actions.addView(verify, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)))
+        list.addView(actions, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        val status = Caption(context)
+        status.setPadding(dp(16), dp(8), dp(16), 0)
+        status.visibility = View.GONE
+        list.addView(status, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        verify.setOnClickListener {
+            val k = f.text.trim()
+            status.visibility = View.VISIBLE
+            if (k.isEmpty()) {
                 status.tone = Caption.Tone.DANGER
-                status.text = it.message ?: it.javaClass.simpleName
+                status.setText(R.string.key_missing)
+                return@setOnClickListener
             }
+            status.tone = Caption.Tone.NORMAL
+            status.setText(R.string.verifying)
+            jobs.add(
+                context.uiScope.launch {
+                    val result = runCatching { withContext(Dispatchers.IO) { check(k) } }
+                    result.onSuccess { status.text = it }
+                    result.onFailure {
+                        status.tone = Caption.Tone.DANGER
+                        status.text = it.message ?: it.javaClass.simpleName
+                    }
+                },
+            )
         }
     }
 
     private fun describe(a: AccountInfo): String {
         val sb = StringBuilder()
-        sb.append(a.label ?: "key ok")
+        sb.append(a.label ?: "Key ok")
         sb.append(" · today ").append(money(a.usageDaily))
         sb.append(" · month ").append(money(a.usageMonthly))
         a.balance?.let { sb.append(" · balance ").append(money(it)) }
@@ -146,9 +140,11 @@ class ProvidersScreen(context: Context) : Screen(context) {
         return sb.toString()
     }
 
+    private fun searched(hits: Int): String = context.getString(R.string.key_ok_search, hits)
+
     private fun money(v: Double): String = String.format(Locale.US, "$%.2f", v)
 
     override fun onExit() {
-        verifyJob?.cancel()
+        for (j in jobs) j.cancel()
     }
 }
