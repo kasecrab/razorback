@@ -68,13 +68,8 @@ class TtsLink(
         val socket = ws
         ws = null
         if (socket != null) {
-            Thread {
-                try {
-                    if (socket.isOpen) socket.sendText("{\"type\":\"Close\"}")
-                } catch (_: IOException) {
-                }
-                socket.close()
-            }.start()
+            if (socket.isOpen) socket.sendText("{\"type\":\"Close\"}")
+            socket.close()
         }
     }
 

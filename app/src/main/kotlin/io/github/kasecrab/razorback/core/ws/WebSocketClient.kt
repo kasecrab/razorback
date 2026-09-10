@@ -9,12 +9,15 @@ import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URI
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
 /**
  * A WebSocket over TLS with nothing but the platform. One reader thread delivers
- * callbacks on itself; sends are serialised by a lock and safe from any thread.
+ * callbacks on itself; every write is queued onto one writer thread, so callers on the
+ * main thread never touch the network and the audio thread never waits on it.
  * [close] from elsewhere is the cancel path: the reader reports closed, not failed.
  */
 class WebSocketClient(
@@ -31,8 +34,8 @@ class WebSocketClient(
     }
 
     @Volatile private var socket: Socket? = null
-    private var out: OutputStream? = null
-    private val writeLock = Any()
+    @Volatile private var out: OutputStream? = null
+    private val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "ws-writer").apply { isDaemon = true } }
     @Volatile private var closing = false
     @Volatile private var opened = false
 
@@ -51,6 +54,7 @@ class WebSocketClient(
         } catch (e: Exception) {
             val wasClosing = closing
             cleanup()
+            writer.shutdown()
             if (!wasClosing) listener.onFailure(this, e)
             return
         }
@@ -121,7 +125,7 @@ class WebSocketClient(
                             deliver(fragmentOpcode, f.toByteArray())
                         }
                     }
-                    Frame.PING -> send(Frame.PONG, payload)
+                    Frame.PING -> enqueue(Frame.PONG, payload)
                     Frame.PONG -> {}
                     Frame.CLOSE -> {
                         val code = Frame.closeCode(payload)
@@ -129,11 +133,12 @@ class WebSocketClient(
                         if (!closing) {
                             closing = true
                             try {
-                                send(Frame.CLOSE, Frame.closePayload(code))
+                                write(Frame.CLOSE, Frame.closePayload(code))
                             } catch (_: IOException) {
                             }
                         }
                         cleanup()
+                        writer.shutdown()
                         listener.onClosed(this, code, reason)
                         return
                     }
@@ -141,10 +146,12 @@ class WebSocketClient(
                 }
             }
             cleanup()
+            writer.shutdown()
             listener.onClosed(this, 1000, "")
         } catch (e: IOException) {
             val wasClosing = closing
             cleanup()
+            writer.shutdown()
             if (wasClosing) listener.onClosed(this, 1000, "") else listener.onFailure(this, e)
         }
     }
@@ -153,35 +160,55 @@ class WebSocketClient(
         if (opcode == Frame.TEXT) listener.onText(this, String(payload, Charsets.UTF_8)) else listener.onBinary(this, payload)
     }
 
-    @Throws(IOException::class)
-    fun sendText(text: String) = send(Frame.TEXT, text.toByteArray(Charsets.UTF_8))
+    /** Queues a text frame; safe from any thread, never blocks the caller. */
+    fun sendText(text: String) = enqueue(Frame.TEXT, text.toByteArray(Charsets.UTF_8))
 
-    @Throws(IOException::class)
-    fun sendBinary(data: ByteArray, offset: Int = 0, length: Int = data.size - offset) = send(Frame.BINARY, data, offset, length)
+    /** Queues a binary frame. The bytes are copied, so the caller may reuse its buffer at once. */
+    fun sendBinary(data: ByteArray, offset: Int = 0, length: Int = data.size - offset) =
+        enqueue(Frame.BINARY, data.copyOfRange(offset, offset + length))
 
-    @Throws(IOException::class)
-    private fun send(opcode: Int, data: ByteArray, offset: Int = 0, length: Int = data.size - offset) {
-        synchronized(writeLock) {
-            val o = out ?: throw IOException("not connected")
-            Frame.write(o, opcode, data, offset, length)
-            o.flush()
+    private fun enqueue(opcode: Int, payload: ByteArray) {
+        if (closing) return
+        try {
+            writer.execute {
+                try {
+                    write(opcode, payload)
+                } catch (e: IOException) {
+                    Log.d { "ws write failed: ${e.message}" }
+                }
+            }
+        } catch (_: RejectedExecutionException) {
         }
+    }
+
+    @Throws(IOException::class)
+    private fun write(opcode: Int, payload: ByteArray) {
+        val o = out ?: throw IOException("not connected")
+        Frame.write(o, opcode, payload)
+        o.flush()
     }
 
     /**
      * Ask to close and stop waiting: a close frame goes out if it can within 150 ms, then
-     * the socket is torn down regardless of what the server does.
+     * the socket is torn down regardless of what the server does. Returns at once.
      */
     fun close(code: Int = 1000, reason: String = "") {
         if (closing) return
         closing = true
         try {
-            socket?.soTimeout = CLOSE_MS
-            send(Frame.CLOSE, Frame.closePayload(code, reason))
-        } catch (e: Exception) {
-            Log.d { "close frame not sent: ${e.message}" }
+            writer.execute {
+                try {
+                    socket?.soTimeout = CLOSE_MS
+                    write(Frame.CLOSE, Frame.closePayload(code, reason))
+                } catch (e: Exception) {
+                    Log.d { "close frame not sent: ${e.message}" }
+                }
+                cleanup()
+            }
+            writer.shutdown()
+        } catch (_: RejectedExecutionException) {
+            cleanup()
         }
-        cleanup()
     }
 
     private fun cleanup() {

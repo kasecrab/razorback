@@ -107,13 +107,8 @@ class DictationLink(
         val socket = ws
         ws = null
         if (socket != null) {
-            Thread {
-                try {
-                    if (socket.isOpen) socket.sendText("{\"type\":\"CloseStream\"}")
-                } catch (_: IOException) {
-                }
-                socket.close()
-            }.start()
+            if (socket.isOpen) socket.sendText("{\"type\":\"CloseStream\"}")
+            socket.close()
         }
         state = State.IDLE
     }

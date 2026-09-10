@@ -55,13 +55,8 @@ class SttLink(private val key: () -> String?, private val model: () -> String) {
         val socket = ws
         ws = null
         if (socket != null) {
-            Thread {
-                try {
-                    if (socket.isOpen) socket.sendText("{\"type\":\"CloseStream\"}")
-                } catch (_: IOException) {
-                }
-                socket.close()
-            }.start()
+            if (socket.isOpen) socket.sendText("{\"type\":\"CloseStream\"}")
+            socket.close()
         }
     }
 
