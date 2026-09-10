@@ -50,7 +50,7 @@ class VoiceSession(
 
     private var stt: Ears = ears()
     private val tts = TtsLink({ secrets.get(Secrets.DEEPGRAM) }, { prefs[Keys.VOICE_TTS_VOICE] }, { prefs[Keys.VOICE_SPEED] })
-    private var mic = MicCapture(MediaRecorder.AudioSource.VOICE_COMMUNICATION) { buf, len -> stt.audio(buf, len) }
+    private var mic = MicCapture(MediaRecorder.AudioSource.VOICE_COMMUNICATION) { buf, len -> hear(buf, len) }
     private val playback = Playback { onDrained() }
     private val focus = AudioFocus(context) { stop() }
     private val chunker = SentenceChunker { sentence -> speak(sentence) }
@@ -75,7 +75,8 @@ class VoiceSession(
         }
     }
     private var replyStartBytes = 0L
-    private var playbackStartedAt = 0L
+    @Volatile private var playbackStartedAt = 0L
+    @Volatile private var playbackEndedAt = 0L
     private var muted = false
     /** A finished turn that arrived while the previous reply was still being cancelled. */
     private var pendingTurn: String? = null
@@ -102,7 +103,8 @@ class VoiceSession(
         // Call processing cancels the speaker's echo so the person can cut in; the plain
         // source hears more faithfully on phones whose call path narrows the sound.
         val source = if (prefs[Keys.VOICE_MIC] == "clean") MediaRecorder.AudioSource.VOICE_RECOGNITION else MediaRecorder.AudioSource.VOICE_COMMUNICATION
-        mic = MicCapture(source) { buf, len -> stt.audio(buf, len) }
+        mic = MicCapture(source) { buf, len -> hear(buf, len) }
+        echoRatio = ECHO_RATIO_FLOOR
         stt.listener = this
         tts.listener = this
         focus.acquire()
@@ -193,6 +195,8 @@ class VoiceSession(
                         interrupt()
                     }
                 }
+                // The transcript of an echo lands after the speaker has gone quiet.
+                if (!busy && isEcho(transcript)) return
                 if (transcript.isBlank()) {
                     if (state == State.USER_SPEAKING) state = State.LISTENING
                     return
@@ -211,7 +215,8 @@ class VoiceSession(
 
     /** True when most of what was heard is what the voice has just been saying. */
     private fun isEcho(transcript: String): Boolean {
-        if (state != State.SPEAKING && !playback.isPlaying) return false
+        val recentlySpoke = playback.isPlaying || SystemClock.elapsedRealtime() - playbackEndedAt < ECHO_WORDS_MS
+        if (state != State.SPEAKING && !recentlySpoke) return false
         var total = 0
         var known = 0
         for (w in words(transcript)) {
@@ -240,6 +245,7 @@ class VoiceSession(
     private fun interrupt() {
         tts.clear()
         playback.clear()
+        playbackEndedAt = SystemClock.elapsedRealtime()
         chunker.reset()
         clock.reset()
         streamDone = false
@@ -253,6 +259,46 @@ class VoiceSession(
     private fun echoGuard(): Boolean {
         val since = SystemClock.elapsedRealtime() - playbackStartedAt
         return since < 250 && mic.level.get() < 60
+    }
+
+    // Echo gate, on the microphone thread.
+
+    /** How loud the speaker comes back through the microphone, as a share of the level sent out. */
+    @Volatile private var echoRatio = ECHO_RATIO_FLOOR
+    private var outHold = 0f
+    private var passUntil = 0L
+    private val silence = ByteArray(MicCapture.CHUNK_BYTES)
+
+    /**
+     * While the assistant talks, the phone hears it too. Without a working echo canceller
+     * the transcriber would faithfully write the reply down as the person's next turn. So
+     * the first half second of every reply, when the person has just finished speaking,
+     * measures how much of the speaker's level leaks in; after that a chunk goes through
+     * only when the microphone is clearly louder than that leak, which is the person
+     * cutting in. Everything else is sent as silence so the transcriber's timing holds.
+     */
+    private fun hear(buf: ByteArray, len: Int) {
+        if (passes(len)) stt.audio(buf, len) else stt.audio(silence, len)
+    }
+
+    private fun passes(len: Int): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        val out = playback.level.get().toFloat()
+        outHold = maxOf(out, outHold * 0.6f)
+        val speakerBusy = playback.isPlaying || now - playbackEndedAt < ECHO_TAIL_MS
+        if (!speakerBusy || outHold < 20f) return true
+        val heard = mic.level.get().toFloat()
+        val since = now - playbackStartedAt
+        if (since < CALIBRATE_MS) {
+            echoRatio = maxOf(echoRatio, heard / outHold)
+            return false
+        }
+        val expected = echoRatio * outHold
+        if (heard > expected * 1.7f + 40f) {
+            passUntil = now + HANGOVER_MS
+            return true
+        }
+        return now < passUntil
     }
 
     private var askedAt = 0L
@@ -388,10 +434,10 @@ class VoiceSession(
         playback.enqueue(data)
         if (first) {
             context.mainExecutor.execute {
-                if (playbackStartedAt < askedAt) {
-                    playbackStartedAt = SystemClock.elapsedRealtime()
-                    Log.d { "voice: first tts audio ${playbackStartedAt - askedAt} ms after the turn ended" }
-                }
+                if (playbackStartedAt < askedAt) Log.d { "voice: first tts audio ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
+                playbackStartedAt = SystemClock.elapsedRealtime()
+                // The leak measured last time is a starting point, not gospel: let it settle again.
+                echoRatio = maxOf(ECHO_RATIO_FLOOR, echoRatio * 0.9f)
                 // A cue while searching keeps the searching status; the answer itself is speaking.
                 if (state == State.THINKING || (state == State.SEARCHING && !toolRound)) {
                     state = State.SPEAKING
@@ -419,6 +465,7 @@ class VoiceSession(
     override fun onCleared() {}
 
     private fun onDrained() {
+        playbackEndedAt = SystemClock.elapsedRealtime()
         context.mainExecutor.execute {
             if (state != State.SPEAKING) return@execute
             if (toolRound || (engine.isStreaming && !streamDone)) {
@@ -438,6 +485,11 @@ class VoiceSession(
         val CUES = listOf("Let me grab some more info on that.", "Let me look that up.", "One second, checking online.")
         val THINK_CUES = listOf("Let me think about that for a second.", "Hmm, give me a moment.", "Okay, let me think.")
         const val SLOW_THINKING_MS = 2500L
+        const val ECHO_RATIO_FLOOR = 0.05f
+        const val CALIBRATE_MS = 500L
+        const val HANGOVER_MS = 700L
+        const val ECHO_TAIL_MS = 500L
+        const val ECHO_WORDS_MS = 2500L
         val NON_WORD = Regex("[^\\p{L}\\p{N}']+")
     }
 
