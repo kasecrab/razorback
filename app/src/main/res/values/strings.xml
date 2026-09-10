@@ -183,4 +183,9 @@
     <string name="voice_thinking_row">Thinking while speaking</string>
     <string name="voice_model_row">Model for voice</string>
     <string name="voice_model_same">Same as chat (long-press to reset)</string>
+    <string name="voice_prompt_row">How it talks</string>
+    <string name="voice_prompt_builtin">Like a person in the room: short, warm, spoken</string>
+    <string name="voice_prompt_custom">Your own instructions</string>
+    <string name="voice_prompt_hint">Added after your system prompt on every spoken turn. It should ask for short, natural speech; anything that produces lists, code or symbols will be read out loud.</string>
+    <string name="voice_prompt_reset">Back to the built-in text</string>
 </resources>

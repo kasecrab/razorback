@@ -245,7 +245,7 @@ class ChatEngine(
             val request = ChatRequest(
                 model = model,
                 messages = hydrate(history),
-                systemPrompt = if (spoken) VoicePrompt.compose(prefs[Keys.SYSTEM_PROMPT]) else prefs[Keys.SYSTEM_PROMPT],
+                systemPrompt = if (spoken) VoicePrompt.compose(prefs[Keys.SYSTEM_PROMPT], prefs[Keys.VOICE_PROMPT]) else prefs[Keys.SYSTEM_PROMPT],
                 maxTokens = prefs[Keys.MAX_TOKENS],
                 thinking = thinking,
                 modelInfo = info,

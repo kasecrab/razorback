@@ -33,6 +33,7 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     private val orbRow = NavRow(context)
     private val thinkingRow = NavRow(context)
     private val modelRow = NavRow(context)
+    private val promptRow = NavRow(context)
     private val speedLabel = Caption(context)
     private val speed = SliderView(context)
 
@@ -77,6 +78,8 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
             }.show()
         }
         list.addView(thinkingRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        promptRow.setOnClickListener { context.nav.push(VoicePromptScreen(context)) }
+        list.addView(promptRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         list.addView(SectionHeader(context).apply { setText(R.string.voice_listening) })
         sttRow.setOnClickListener {
@@ -145,6 +148,7 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         thinkingRow.set(R.drawable.ic_brain, context.getString(R.string.voice_thinking_row), prefs[Keys.VOICE_THINKING].label)
         val vm = prefs[Keys.VOICE_MODEL]
         modelRow.set(R.drawable.ic_star, context.getString(R.string.voice_model_row), if (vm.isEmpty()) context.getString(R.string.voice_model_same) else vm)
+        promptRow.set(R.drawable.ic_edit, context.getString(R.string.voice_prompt_row), context.getString(if (prefs[Keys.VOICE_PROMPT].isBlank()) R.string.voice_prompt_builtin else R.string.voice_prompt_custom))
     }
 
     private companion object {
