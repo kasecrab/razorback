@@ -64,3 +64,41 @@ object Http {
         return if (text.length > 400) text.take(400) + "…" else text.ifEmpty { "HTTP $status" }
     }
 }
+
+/** POST a body and hand every response line to [onLine] until it returns false or the stream ends. */
+fun Http.stream(
+    url: String,
+    headers: Map<String, String>,
+    body: String,
+    handle: io.github.kasecrab.razorback.provider.StreamHandle,
+    onHeaders: (HttpURLConnection) -> Unit = {},
+    onLine: (String) -> Boolean,
+) {
+    val conn = open(url, "POST", headers)
+    handle.connection = conn
+    try {
+        conn.readTimeout = 120_000
+        conn.setRequestProperty("Accept", "text/event-stream")
+        conn.setRequestProperty("Accept-Encoding", "identity")
+        conn.setRequestProperty("Content-Type", "application/json")
+        val bytes = body.toByteArray(Charsets.UTF_8)
+        conn.doOutput = true
+        conn.setFixedLengthStreamingMode(bytes.size)
+        conn.outputStream.use { it.write(bytes) }
+        val status = conn.responseCode
+        if (status >= 400) throw HttpException(status, errorMessage(conn, status))
+        onHeaders(conn)
+        conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+            while (true) {
+                val line = reader.readLine() ?: break
+                if (!onLine(line)) break
+            }
+        }
+    } catch (e: IOException) {
+        if (handle.cancelled) throw io.github.kasecrab.razorback.provider.StreamCancelled()
+        throw e
+    } finally {
+        handle.connection = null
+        conn.disconnect()
+    }
+}

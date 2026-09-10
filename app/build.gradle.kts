@@ -82,6 +82,7 @@ android {
 
 dependencies {
     implementation(libs.coroutines.android)
+    implementation(libs.recyclerview)
     testImplementation(libs.junit)
     testImplementation(libs.orgjson)
 }
