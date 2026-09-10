@@ -15,6 +15,7 @@ import io.github.kasecrab.razorback.ui.core.Themed
 import io.github.kasecrab.razorback.ui.core.Type
 import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
+import io.github.kasecrab.razorback.ui.md.MessageView
 import io.github.kasecrab.razorback.ui.widget.Shapes
 
 /** The person's turn: a bubble hugging the end edge. */
@@ -49,14 +50,12 @@ class UserMessageView(context: Context) : FrameLayout(context), Themed {
 /** The model's turn: flat, full width, with a status line when something went wrong. */
 class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
 
-    private val body = TextView(context)
+    private val body = MessageView(context)
     private val note = TextView(context)
 
     init {
         orientation = VERTICAL
         setPadding(dp(16), dp(6), dp(16), dp(6))
-        body.typeface = Fonts.regular
-        body.setTextIsSelectable(true)
         addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         note.typeface = Fonts.regular
         note.visibility = View.GONE
@@ -66,7 +65,7 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
 
     fun bind(m: Message) {
         val theme = context.appTheme
-        body.text = m.content
+        body.render(m.content)
         val noteText = when (m.status) {
             MessageStatus.ERROR -> m.error ?: "Something went wrong"
             MessageStatus.CUT -> m.error ?: "Cut short"
@@ -80,15 +79,14 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
 
     /** Streaming path: only the text changes, nothing is re-measured but the body. */
     fun bindStream(m: Message) {
-        body.text = m.content
+        body.render(m.content)
         if (m.content.isNotEmpty() && note.visibility == View.VISIBLE && m.status == MessageStatus.STREAMING) {
             note.visibility = View.GONE
         }
     }
 
     override fun onThemeChanged(theme: Theme) {
-        body.setTextColor(theme.textPrimary)
-        body.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
+        body.onThemeChanged(theme)
         note.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
     }
 }
