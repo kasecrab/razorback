@@ -22,7 +22,7 @@ class RingOrb : AgslOrb(
         float sw = fbm(s + float2(cos(t * 0.2), sin(t * 0.2)) * 0.6 + a * 0.15);
         float gate = exp(-r * 5.5) * (0.22 + outLevel * 0.9 + inLevel * 0.5 + think * 0.3) * (0.55 + 0.45 * sw);
         float3 col = float3(c2.rgb) + float3(c0.rgb) * gate * (1.0 - ring) * step(r, ringR + 0.01);
-        col += float3(c1.rgb) * exp(-abs(r - ringR) * 38.0) * (0.18 + 0.3 * level) * (1.0 - ring);
+        col = mix(col, float3(c1.rgb), clamp(exp(-abs(r - ringR) * 38.0) * (0.18 + 0.3 * level) * (1.0 - ring), 0.0, 1.0));
         col = mix(col, ringCol, ring);
         return half4(half3(col), 1.0);
     }
@@ -49,9 +49,9 @@ class PulseOrb : AgslOrb(
             float d = abs(uv.y - y);
             float line = exp(-d * d * 2600.0);
             float3 tint = mix(float3(c0.rgb), float3(c1.rgb), fi / 3.0);
-            col += tint * line * (0.85 - fi * 0.12);
+            col = mix(col, tint, clamp(line * (0.95 - fi * 0.15), 0.0, 1.0));
         }
-        return half4(half3(clamp(col, 0.0, 1.0)), 1.0);
+        return half4(half3(col), 1.0);
     }
     """.trimIndent(),
 )
@@ -107,10 +107,11 @@ class EclipseOrb : AgslOrb(
         float corona = exp(-(r - discR) * (9.0 - 4.0 * outLevel)) * (0.35 + 0.9 * outLevel + 0.25 * think) * (0.5 + 0.8 * ang);
         float flare = pow(0.5 + 0.5 * sin(a * 7.0 + t * 0.8), 18.0) * exp(-(r - discR) * 3.0) * outLevel * 0.8;
         float rim = exp(-abs(r - discR) * 60.0) * (0.6 + 0.4 * inLevel);
-        float3 col = float3(c2.rgb) + float3(c0.rgb) * (corona + flare) * step(discR, r) + float3(c1.rgb) * rim;
-        float3 body = mix(float3(0.0), float3(c0.rgb) * 0.08, inLevel);
+        float3 col = mix(float3(c2.rgb), float3(c0.rgb), clamp((corona + flare) * step(discR, r), 0.0, 1.0));
+        col = mix(col, float3(c1.rgb), clamp(rim, 0.0, 1.0));
+        float3 body = mix(float3(0.03), float3(c0.rgb) * 0.12, inLevel);
         col = mix(col, body, disc);
-        return half4(half3(clamp(col, 0.0, 1.0)), 1.0);
+        return half4(half3(col), 1.0);
     }
     """.trimIndent(),
 )
@@ -130,8 +131,9 @@ class ReactorOrb : AgslOrb(
         float wave = fract(t * (0.35 + 0.6 * outLevel));
         float shock = exp(-abs(r - wave * 0.55) * 60.0) * (1.0 - wave) * (0.3 + 0.9 * outLevel);
         float grid = pow(0.5 + 0.5 * sin(atan(uv.y, uv.x) * 24.0 + t), 40.0) * exp(-r * 6.0) * inLevel * 0.6;
-        float3 col = float3(c2.rgb) + float3(c0.rgb) * (rings + shock + grid) + float3(c1.rgb) * core;
-        return half4(half3(clamp(col, 0.0, 1.0)), 1.0);
+        float3 col = mix(float3(c2.rgb), float3(c0.rgb), clamp(rings + shock + grid, 0.0, 1.0));
+        col = mix(col, float3(c1.rgb), clamp(core, 0.0, 1.0));
+        return half4(half3(col), 1.0);
     }
     """.trimIndent(),
 )
