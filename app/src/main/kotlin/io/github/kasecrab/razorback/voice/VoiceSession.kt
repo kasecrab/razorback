@@ -89,6 +89,13 @@ class VoiceSession(
         state = State.IDLE
     }
 
+    /** Debug builds only: feed a turn as if the person had said it, for phones and emulators without a usable mic. */
+    fun injectTurn(text: String) {
+        if (!io.github.kasecrab.razorback.BuildConfig.DEBUG || !isActive) return
+        onTurn(SttLink.Turn.START, text, -1)
+        onTurn(SttLink.Turn.END, text, -1)
+    }
+
     fun setMuted(on: Boolean) {
         muted = on
         mic.muted.set(on || (state == State.SPEAKING && prefs[Keys.VOICE_MUTE_WHILE_SPEAKING]))
@@ -153,7 +160,10 @@ class VoiceSession(
         return since < 250 && mic.level.get() < 60
     }
 
+    private var askedAt = 0L
+
     private fun ask(text: String) {
+        askedAt = SystemClock.elapsedRealtime()
         chunker.reset()
         spokenChars = 0
         awaitingFlush = false
@@ -210,7 +220,10 @@ class VoiceSession(
 
     override fun onAudio(data: ByteArray) {
         if (replyIndex < 0) return
-        if (!playback.isPlaying) playbackStartedAt = SystemClock.elapsedRealtime()
+        if (!playback.isPlaying) {
+            playbackStartedAt = SystemClock.elapsedRealtime()
+            Log.d { "voice: first tts audio ${data.size} bytes, ${playbackStartedAt - askedAt} ms after the turn ended" }
+        }
         playback.enqueue(data)
         if (state == State.THINKING) {
             state = State.SPEAKING

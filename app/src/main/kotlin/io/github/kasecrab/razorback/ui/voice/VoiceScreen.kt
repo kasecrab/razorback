@@ -51,6 +51,13 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
         status.typeface = Fonts.medium
         status.gravity = Gravity.CENTER
+        if (io.github.kasecrab.razorback.BuildConfig.DEBUG) {
+            // Long-press the status line to type a turn when there is no microphone to speak into.
+            status.setOnLongClickListener {
+                io.github.kasecrab.razorback.ui.widget.InputSheet(context, "Say", "") { voice.injectTurn(it) }.show()
+                true
+            }
+        }
         addView(status, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = dp(24) })
 
         captions.orientation = LinearLayout.VERTICAL
