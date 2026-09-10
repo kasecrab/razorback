@@ -105,10 +105,12 @@ class TableView(context: Context) : View(context), Themed {
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val w = MeasureSpec.getSize(widthMeasureSpec)
-        build(w)
+        val available = MeasureSpec.getSize(widthMeasureSpec)
+        build(available)
+        // A narrow table hugs its columns instead of drawing a border across the whole line.
+        val w = minOf(available, totalWidth + 2)
         setMeasuredDimension(w, rowHeights.sum() + 2)
-        pan.maxScroll = totalWidth - w
+        pan.maxScroll = totalWidth + 2 - w
     }
 
     override fun onDraw(canvas: Canvas) {
