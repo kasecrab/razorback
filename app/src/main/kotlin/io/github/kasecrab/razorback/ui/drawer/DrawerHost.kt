@@ -132,8 +132,12 @@ class DrawerHost(context: Context) : ViewGroup(context), Themed, BackHandler {
         return false
     }
 
-    /** Whether a horizontal stroke anywhere on the content opens the drawer. */
-    var allowContentDrag = true
+    /**
+     * Whether a horizontal stroke anywhere on the content opens the drawer. Off by default:
+     * code blocks and tables pan sideways, and a parent that grabs those strokes first would
+     * steal them. The edge strip and the menu button always work.
+     */
+    var allowContentDrag = false
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
         track(ev)
