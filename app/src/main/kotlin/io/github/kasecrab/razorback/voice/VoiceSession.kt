@@ -169,7 +169,7 @@ class VoiceSession(
         awaitingFlush = false
         state = State.THINKING
         replyIndex = engine.messages.size + 1
-        engine.send(text, thinking = prefs[Keys.VOICE_THINKING], model = prefs[Keys.VOICE_MODEL].ifEmpty { engine.model })
+        engine.send(text, thinking = prefs[Keys.VOICE_THINKING], model = prefs[Keys.VOICE_MODEL].ifEmpty { engine.model }, preferLatency = true)
     }
 
     // Model reply

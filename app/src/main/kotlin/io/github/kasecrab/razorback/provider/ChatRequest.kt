@@ -13,4 +13,6 @@ class ChatRequest(
     val thinking: ThinkingLevel = ThinkingLevel.OFF,
     val tools: List<JSONObject> = emptyList(),
     val imageOutput: Boolean = false,
+    /** Ask the router to prefer the fastest provider; spoken replies care more about the first word than the price. */
+    val preferLatency: Boolean = false,
 )

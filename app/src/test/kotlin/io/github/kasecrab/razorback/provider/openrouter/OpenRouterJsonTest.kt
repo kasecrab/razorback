@@ -109,6 +109,12 @@ class OpenRouterJsonTest {
     }
 
     @Test
+    fun latencyPreferenceBecomesProviderSort() {
+        val w = OpenRouterJson.toWire(ChatRequest("m", emptyList(), preferLatency = true))
+        assertEquals("latency", w.getJSONObject("provider").getString("sort"))
+    }
+
+    @Test
     fun thinkingOffOmitsReasoning() {
         val w = OpenRouterJson.toWire(ChatRequest("m", emptyList(), thinking = ThinkingLevel.OFF))
         assertNull(w.opt("reasoning"))

@@ -128,7 +128,7 @@ class ChatEngine(
         }
     }
 
-    fun send(text: String, images: List<String> = emptyList(), thinking: ThinkingLevel = this.thinking, model: String = this.model) {
+    fun send(text: String, images: List<String> = emptyList(), thinking: ThinkingLevel = this.thinking, model: String = this.model, preferLatency: Boolean = false) {
         if (isStreaming) return
         val user = Message(Ids.next(), Role.USER, content = text, images = images)
         var conv = conversation
@@ -143,7 +143,7 @@ class ChatEngine(
         val index = messages.size - 1
         if (persist) io.launch { store.insertMessage(conv.id, index, user) }
         for (l in listeners) l.onMessageAdded(index)
-        startReply(thinking = thinking, model = model)
+        startReply(thinking = thinking, model = model, preferLatency = preferLatency)
     }
 
     /** Drop the last reply and ask again. */
@@ -203,7 +203,7 @@ class ChatEngine(
         return if (line.length > 60) line.take(57).trimEnd() + "…" else line
     }
 
-    private fun startReply(round: Int = 0, thinking: ThinkingLevel = this.thinking, model: String = this.model) {
+    private fun startReply(round: Int = 0, thinking: ThinkingLevel = this.thinking, model: String = this.model, preferLatency: Boolean = false) {
         val conv = conversation ?: return
         val reply = Message(Ids.next(), Role.ASSISTANT, model = model, status = MessageStatus.STREAMING)
         messages.add(reply)
@@ -228,6 +228,7 @@ class ChatEngine(
                 thinking = thinking,
                 tools = offered.map { it.spec },
                 imageOutput = info?.producesImages == true,
+                preferLatency = preferLatency,
             )
             val runner = TurnRunner(provider, h) { text, reasoning ->
                 synchronized(lock) {
@@ -364,7 +365,7 @@ class ChatEngine(
                         for (l in listeners) l.onMessageAdded(ti)
                     }
                     handle = null
-                    startReply(round + 1, thinking, model)
+                    startReply(round + 1, thinking, model, preferLatency)
                 }
             }
             return

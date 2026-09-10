@@ -34,6 +34,7 @@ object OpenRouterJson {
         if (r.thinking != ThinkingLevel.OFF) put("reasoning", jsonObject { put("effort", r.thinking.wire) })
         if (r.tools.isNotEmpty()) put("tools", JSONArray(r.tools))
         if (r.imageOutput) put("modalities", JSONArray().put("image").put("text"))
+        if (r.preferLatency) put("provider", jsonObject { put("sort", "latency") })
     }
 
     private fun message(m: Message): JSONObject = jsonObject {
