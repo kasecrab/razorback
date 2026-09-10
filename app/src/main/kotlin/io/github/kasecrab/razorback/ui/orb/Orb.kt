@@ -30,7 +30,7 @@ interface Orb {
 }
 
 object Orbs {
-    val all: List<Orb> by lazy { listOf(SolOrb()) }
+    val all: List<Orb> by lazy { listOf(SolOrb(), RingOrb(), NebulaOrb(), PulseOrb(), EclipseOrb(), ReactorOrb(), LatticeOrb()) }
 
     fun byId(id: String): Orb = all.firstOrNull { it.id == id } ?: all[0]
 }

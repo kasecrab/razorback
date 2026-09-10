@@ -72,6 +72,12 @@ class MainActivity : Activity() {
 
     /** razorback://chat/<id> from a notification opens that conversation. */
     private fun handleIntent(intent: Intent?) {
+        if (BuildConfig.DEBUG && intent?.hasExtra("base_url") == true) {
+            // adb shell am start ... --es base_url http://10.0.2.2:8787 points a debug build at a mock server.
+            val url = intent.getStringExtra("base_url")?.trim()?.takeIf { it.isNotEmpty() }
+            App.instance.prefs.putRawString(App.DEV_BASE_URL, url)
+            io.github.kasecrab.razorback.provider.openrouter.OpenRouter.BASE = url ?: io.github.kasecrab.razorback.provider.openrouter.OpenRouter.DEFAULT_BASE
+        }
         val data = intent?.data ?: return
         if (data.scheme != "razorback" || data.host != "chat") return
         val id = data.lastPathSegment ?: return

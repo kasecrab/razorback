@@ -39,10 +39,12 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        if (BuildConfig.DEBUG) prefs.rawString(DEV_BASE_URL)?.let { io.github.kasecrab.razorback.provider.openrouter.OpenRouter.BASE = it }
         scope.launch { store.repairStreaming() }
     }
 
     companion object {
+        const val DEV_BASE_URL = "dev.base_url"
         lateinit var instance: App
             private set
     }

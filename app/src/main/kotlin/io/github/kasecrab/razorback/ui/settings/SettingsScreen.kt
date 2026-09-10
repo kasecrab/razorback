@@ -29,9 +29,10 @@ class SettingsScreen(context: Context) : Screen(context) {
 
         row(R.drawable.ic_key, R.string.providers, R.string.providers_subtitle) { context.nav.push(ProvidersScreen(context)) }
         row(R.drawable.ic_edit, R.string.prompts, R.string.prompts_subtitle) { context.nav.push(PromptsScreen(context)) }
+        row(R.drawable.ic_waveform, R.string.voice, R.string.voice_subtitle) { context.nav.push(VoiceSettingsScreen(context)) }
         row(R.drawable.ic_image, R.string.appearance, R.string.appearance_subtitle) { context.nav.push(AppearanceScreen(context)) }
         row(R.drawable.ic_globe, R.string.usage, R.string.usage_subtitle) { context.nav.push(UsageScreen(context)) }
-        row(R.drawable.ic_waveform, R.string.stats, R.string.stats_subtitle) { context.nav.push(StatsScreen(context)) }
+        row(R.drawable.ic_brain, R.string.stats, R.string.stats_subtitle) { context.nav.push(StatsScreen(context)) }
         row(R.drawable.ic_download, R.string.backup, R.string.backup_subtitle) { context.nav.push(BackupScreen(context)) }
     }
 

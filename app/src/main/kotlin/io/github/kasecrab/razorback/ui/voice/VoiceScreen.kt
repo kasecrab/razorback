@@ -36,6 +36,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     private val userCaption = TextView(context)
     private val assistantCaption = TextView(context)
     private val mute = IconButton(context)
+    private val style = IconButton(context)
     private val end = IconButton(context)
     private val controls = LinearLayout(context)
     private val captions = LinearLayout(context)
@@ -43,7 +44,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
     init {
         keepScreenOn = true
-        orb.orb = Orbs.byId(app.prefs[Keys.VOICE_ORB])
+        orb.orb = if (app.prefs[Keys.REDUCE_MOTION]) Orbs.byId("lattice") else Orbs.byId(app.prefs[Keys.VOICE_ORB])
         orb.inLevel = { voice.inLevel }
         orb.outLevel = { voice.outLevel }
         addView(orb, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -73,6 +74,12 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         mute.contentDescription = context.getString(R.string.cd_mute)
         mute.setOnClickListener { toggleMute() }
         controls.addView(mute, LinearLayout.LayoutParams(dp(60), dp(60)).apply { marginEnd = dp(28) })
+        style.iconRes = R.drawable.ic_image
+        style.filled = true
+        style.tone = IconButton.Tone.PRIMARY
+        style.contentDescription = context.getString(R.string.cd_orb_style)
+        style.setOnClickListener { OrbPickerSheet(context) { orb.orb = it }.show() }
+        controls.addView(style, LinearLayout.LayoutParams(dp(60), dp(60)).apply { marginEnd = dp(28) })
         end.iconRes = R.drawable.ic_close
         end.filled = true
         end.tone = IconButton.Tone.PRIMARY
