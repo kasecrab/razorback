@@ -33,6 +33,9 @@ class OrbView(context: Context) : View(context), Themed {
     var inLevel: () -> Float = { 0f }
     var outLevel: () -> Float = { 0f }
 
+    /** Thumbnails in a picker run slower; there are several of them and none is the point. */
+    var preview = false
+
     private var theme: Theme = context.appTheme
     private var running = false
     private var startNanos = 0L
@@ -50,10 +53,13 @@ class OrbView(context: Context) : View(context), Themed {
             smoothIn += (rawIn - smoothIn) * (if (rawIn > smoothIn) 0.45f else 0.12f)
             smoothOut += (rawOut - smoothOut) * (if (rawOut > smoothOut) 0.45f else 0.12f)
             val active = smoothIn > 0.03f || smoothOut > 0.03f || state == Orb.THINKING
+            // The orb is what the person looks at in voice mode; while anything is happening,
+            // or while it waits for them to speak, it runs at full rate. Only a truly idle
+            // orb, or one in a picker, is paced down.
             val fps = when {
                 theme.reduceMotion -> 15
-                active -> 60
-                state == Orb.LISTENING -> 30
+                preview -> 30
+                active || state == Orb.LISTENING || state == Orb.SPEAKING -> 60
                 else -> orb.idleFps
             }
             val interval = 1_000_000_000L / fps

@@ -45,6 +45,7 @@ class OrbPickerSheet(context: Context, private val onPick: (Orb) -> Unit) : Shee
             card.setPadding(dp(6), dp(6), dp(6), dp(8))
             val preview = OrbView(context)
             preview.orb = orb
+            preview.preview = true
             preview.state = Orb.LISTENING
             preview.clipToOutline = true
             preview.background = Shapes.rounded(0, dp(16f))

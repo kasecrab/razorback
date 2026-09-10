@@ -13,7 +13,7 @@ interface Orb {
     val name: String
 
     /** Frames per second while nothing is happening; the view raises it when levels move. */
-    val idleFps: Int get() = 20
+    val idleFps: Int get() = 30
 
     fun onAttach() {}
     fun onDetach() {}
