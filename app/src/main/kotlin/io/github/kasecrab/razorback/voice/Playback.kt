@@ -11,9 +11,10 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.sqrt
 
 /**
- * Speaker output for 24 kHz mono PCM16 arriving in bursts. Chunks queue in a ring; the
- * play thread waits for a small cushion before starting so the first words do not stutter.
- * [clear] drops everything at once for barge-in.
+ * Speaker output for 24 kHz mono PCM16 arriving in bursts. Chunks queue in a ring that
+ * grows when a long reply arrives faster than it can be played, because dropping any of
+ * it would drop words. The play thread waits for a small cushion before starting so the
+ * first words do not stutter. [clear] drops everything at once for barge-in.
  */
 class Playback(private val onDrained: () -> Unit) {
 
@@ -22,7 +23,7 @@ class Playback(private val onDrained: () -> Unit) {
     /** Bytes accepted since the track last started from silence; see [playedBytes]. */
     val enqueuedBytes = AtomicLong(0)
 
-    private val ring = ByteArray(RING_BYTES)
+    private var ring = ByteArray(RING_BYTES)
     private var head = 0
     private var size = 0
     private val lock = Object()
@@ -72,23 +73,19 @@ class Playback(private val onDrained: () -> Unit) {
         synchronized(lock) {
             var len = length
             var off = offset
-            if (len > RING_BYTES) {
-                off += len - RING_BYTES
-                len = RING_BYTES
-            }
-            // Overflow drops the oldest audio; better a skip than an ever-growing delay.
-            val free = RING_BYTES - size
-            if (len > free) {
-                val drop = len - free
-                head = (head + drop) % RING_BYTES
+            if (len > ring.size - size) grow(size + len)
+            if (len > ring.size - size) {
+                // Past the cap even so; only then does the oldest audio go.
+                val drop = len - (ring.size - size)
+                head = (head + drop) % ring.size
                 size -= drop
             }
-            var tail = (head + size) % RING_BYTES
+            var tail = (head + size) % ring.size
             var remaining = len
             while (remaining > 0) {
-                val n = minOf(remaining, RING_BYTES - tail)
+                val n = minOf(remaining, ring.size - tail)
                 System.arraycopy(data, off, ring, tail, n)
-                tail = (tail + n) % RING_BYTES
+                tail = (tail + n) % ring.size
                 off += n
                 remaining -= n
             }
@@ -111,6 +108,19 @@ class Playback(private val onDrained: () -> Unit) {
         } catch (_: IllegalStateException) {
             0L
         }
+    }
+
+    /** Under the lock: a bigger ring with the queued audio straightened out at the front. */
+    private fun grow(needed: Int) {
+        var cap = ring.size
+        while (cap < needed && cap < MAX_RING_BYTES) cap *= 2
+        if (cap == ring.size) return
+        val bigger = ByteArray(cap)
+        val first = minOf(size, ring.size - head)
+        System.arraycopy(ring, head, bigger, 0, first)
+        if (size > first) System.arraycopy(ring, 0, bigger, first, size - first)
+        ring = bigger
+        head = 0
     }
 
     /** No more audio is coming for now; [onDrained] fires once the ring empties. */
@@ -195,9 +205,9 @@ class Playback(private val onDrained: () -> Unit) {
                 n = if (drained) 0 else minOf(chunk.size, size)
                 var copied = 0
                 while (copied < n) {
-                    val len = minOf(n - copied, RING_BYTES - head)
+                    val len = minOf(n - copied, ring.size - head)
                     System.arraycopy(ring, head, chunk, copied, len)
-                    head = (head + len) % RING_BYTES
+                    head = (head + len) % ring.size
                     copied += len
                 }
                 size -= n
@@ -255,5 +265,7 @@ class Playback(private val onDrained: () -> Unit) {
         const val BYTES_PER_MS = SAMPLE_RATE * 2 / 1000
         const val PREBUFFER_MS = 120
         const val RING_BYTES = 512 * 1024
+        /** About six minutes of speech; a reply longer than that is not one anyone waits through. */
+        const val MAX_RING_BYTES = 16 * 1024 * 1024
     }
 }
