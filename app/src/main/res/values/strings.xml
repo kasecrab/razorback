@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Razorback</string>
+    <string name="composer_hint">Message</string>
+    <string name="empty_greeting">What’s on your mind?</string>
+    <string name="cd_menu">Open menu</string>
+    <string name="cd_new_chat">New chat</string>
+    <string name="cd_attach">Attach</string>
+    <string name="cd_send">Send</string>
+    <string name="cd_stop">Stop</string>
+    <string name="cd_dictate">Dictate</string>
+    <string name="cd_voice_mode">Voice mode</string>
+    <string name="cd_model">Choose model</string>
+</resources>

@@ -1,0 +1,16 @@
+[versions]
+agp = "9.3.1"
+kotlin = "2.4.10"
+coroutines = "1.9.0"
+recyclerview = "1.4.0"
+junit = "4.13.2"
+orgjson = "20250517"
+
+[libraries]
+coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+orgjson = { group = "org.json", name = "json", version.ref = "orgjson" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }

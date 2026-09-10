@@ -1,0 +1,24 @@
+# Gradle
+/.gradle/
+**/build/
+/.kotlin/
+
+# Local machine config (SDK path, signing)
+/local.properties
+*.jks
+*.keystore
+
+# Editors / OS
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Profiling / captures
+/captures/
+*.hprof
+
+# Not published
+/git_ignored/
