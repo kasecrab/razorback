@@ -153,4 +153,17 @@
     <string name="voice_stt_model">Listening model</string>
     <string name="voice_mute_while_speaking">Mute mic while the assistant speaks</string>
     <string name="voice_mute_while_speaking_hint">For phones whose echo cancelling lets the speaker interrupt itself; disables cutting in</string>
+    <string name="models_subtitle">Default model, favourites, thinking</string>
+    <string name="models_defaults">Defaults</string>
+    <string name="default_model">Default model</string>
+    <string name="favorites">Favourites</string>
+    <string name="favorites_hint">Favourites appear in the composer’s model menu. Tap one to set it as default or pin a thinking level.</string>
+    <string name="use_as_default">Use as default</string>
+    <string name="pin_thinking">Thinking when chosen: %s</string>
+    <string name="none">None</string>
+    <string name="move_up">Move up</string>
+    <string name="about">About</string>
+    <string name="about_subtitle">Version and source</string>
+    <string name="source_code">Source code</string>
+    <string name="about_note">Razorback talks to OpenRouter for models and to Deepgram for voice. Keys stay on this phone, encrypted, and are only ever sent to their own service.</string>
 </resources>
