@@ -18,6 +18,12 @@ class Favorites(private val prefs: Prefs) {
     private val listeners = ArrayList<() -> Unit>(2)
 
     init {
+        reload()
+    }
+
+    /** Re-read from preferences, after an import. */
+    fun reload() {
+        items.clear()
         try {
             JSONArray(prefs[Keys.FAVORITES].ifEmpty { "[]" }).forEachObject { o ->
                 val id = o.str("id") ?: return@forEachObject
@@ -25,6 +31,7 @@ class Favorites(private val prefs: Prefs) {
             }
         } catch (_: JSONException) {
         }
+        for (l in listeners) l()
     }
 
     val all: List<Favorite> get() = items

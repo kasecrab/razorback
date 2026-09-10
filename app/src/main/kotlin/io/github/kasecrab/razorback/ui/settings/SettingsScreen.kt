@@ -32,6 +32,7 @@ class SettingsScreen(context: Context) : Screen(context) {
         row(R.drawable.ic_image, R.string.appearance, R.string.appearance_subtitle) { context.nav.push(AppearanceScreen(context)) }
         row(R.drawable.ic_globe, R.string.usage, R.string.usage_subtitle) { context.nav.push(UsageScreen(context)) }
         row(R.drawable.ic_waveform, R.string.stats, R.string.stats_subtitle) { context.nav.push(StatsScreen(context)) }
+        row(R.drawable.ic_download, R.string.backup, R.string.backup_subtitle) { context.nav.push(BackupScreen(context)) }
     }
 
     private fun row(icon: Int, title: Int, subtitle: Int, onClick: () -> Unit) {

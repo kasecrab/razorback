@@ -69,6 +69,14 @@ class Prefs(context: Context) {
         sp.edit().apply { if (value == null) remove(name) else putString(name, value) }.apply()
     }
 
+    fun putRawBoolean(name: String, value: Boolean) = sp.edit().putBoolean(name, value).apply()
+
+    fun putRawInt(name: String, value: Int) = sp.edit().putInt(name, value).apply()
+
+    fun putRawLong(name: String, value: Long) = sp.edit().putLong(name, value).apply()
+
+    fun putRawFloat(name: String, value: Float) = sp.edit().putFloat(name, value).apply()
+
     fun removeAll(prefix: String) {
         val e = sp.edit()
         for (k in sp.all.keys) if (k.startsWith(prefix)) e.remove(k)

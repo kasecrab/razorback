@@ -118,4 +118,18 @@
     <string name="text_size">Text size</string>
     <string name="reduce_motion">Reduce motion</string>
     <string name="reduce_motion_hint">Skip transitions and idle animation</string>
+    <string name="backup">Backup</string>
+    <string name="backup_subtitle">Export or import chats and settings</string>
+    <string name="backup_export_full">Export everything</string>
+    <string name="backup_export_full_hint">Chats, attachments, prompts, usage and settings in one zip</string>
+    <string name="backup_export_settings">Export settings only</string>
+    <string name="backup_export_settings_hint">A small JSON file, no chats</string>
+    <string name="backup_include_keys">Include API keys in settings export</string>
+    <string name="backup_import">Import</string>
+    <string name="backup_import_hint">A zip or settings file made by Razorback</string>
+    <string name="backup_replace">Replace everything on this phone</string>
+    <string name="backup_merge">Merge with what is here</string>
+    <string name="backup_working">Working…</string>
+    <string name="backup_done">Done</string>
+    <string name="backup_failed">Backup failed: %s</string>
 </resources>
