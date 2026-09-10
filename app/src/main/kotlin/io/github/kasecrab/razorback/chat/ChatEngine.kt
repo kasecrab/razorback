@@ -19,6 +19,7 @@ import io.github.kasecrab.razorback.model.ThinkingLevel
 import io.github.kasecrab.razorback.provider.ChatRequest
 import io.github.kasecrab.razorback.provider.Provider
 import io.github.kasecrab.razorback.provider.StreamHandle
+import io.github.kasecrab.razorback.voice.VoicePrompt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -145,7 +146,11 @@ class ChatEngine(
         }
     }
 
-    fun send(text: String, images: List<String> = emptyList(), thinking: ThinkingLevel = this.thinking, model: String = this.model, preferLatency: Boolean = false) {
+    /**
+     * [spoken] turns are for voice mode: the reply is routed for latency and the model is
+     * told it is talking out loud, so it answers briefly in plain prose.
+     */
+    fun send(text: String, images: List<String> = emptyList(), thinking: ThinkingLevel = this.thinking, model: String = this.model, spoken: Boolean = false) {
         if (isStreaming) return
         val user = Message(Ids.next(), Role.USER, content = text, images = images)
         var conv = conversation
@@ -160,7 +165,7 @@ class ChatEngine(
         val index = messages.size - 1
         if (persist) persist("message") { store.insertMessage(conv.id, index, user) }
         for (l in listeners) l.onMessageAdded(index)
-        startReply(thinking = thinking, model = model, preferLatency = preferLatency)
+        startReply(thinking = thinking, model = model, spoken = spoken)
     }
 
     /** Drop the last reply and ask again. */
@@ -220,7 +225,7 @@ class ChatEngine(
         return if (line.length > 60) line.take(57).trimEnd() + "…" else line
     }
 
-    private fun startReply(round: Int = 0, thinking: ThinkingLevel = this.thinking, model: String = this.model, preferLatency: Boolean = false) {
+    private fun startReply(round: Int = 0, thinking: ThinkingLevel = this.thinking, model: String = this.model, spoken: Boolean = false) {
         val conv = conversation ?: return
         val reply = Message(Ids.next(), Role.ASSISTANT, model = model, status = MessageStatus.STREAMING)
         messages.add(reply)
@@ -240,13 +245,13 @@ class ChatEngine(
             val request = ChatRequest(
                 model = model,
                 messages = hydrate(history),
-                systemPrompt = prefs[Keys.SYSTEM_PROMPT],
+                systemPrompt = if (spoken) VoicePrompt.compose(prefs[Keys.SYSTEM_PROMPT]) else prefs[Keys.SYSTEM_PROMPT],
                 maxTokens = prefs[Keys.MAX_TOKENS],
                 thinking = thinking,
                 modelInfo = info,
                 tools = offered.map { it.spec },
                 imageOutput = info?.producesImages == true,
-                preferLatency = preferLatency,
+                preferLatency = spoken,
             )
             val runner = TurnRunner(provider, h) { text, reasoning ->
                 synchronized(lock) {
@@ -265,7 +270,7 @@ class ChatEngine(
                     null
                 }
             }
-            main.post { finish(conv, reply, outcome, started, saved, round, thinking, model, preferLatency) }
+            main.post { finish(conv, reply, outcome, started, saved, round, thinking, model, spoken) }
         }
     }
 
@@ -352,7 +357,7 @@ class ChatEngine(
         round: Int,
         thinking: ThinkingLevel,
         model: String,
-        preferLatency: Boolean,
+        spoken: Boolean,
     ) {
         main.removeCallbacks(flush)
         flush.run()
@@ -393,7 +398,7 @@ class ChatEngine(
                         for (l in listeners) l.onMessageAdded(ti)
                     }
                     handle = null
-                    startReply(round + 1, thinking, model, preferLatency)
+                    startReply(round + 1, thinking, model, spoken)
                 }
             }
             return
