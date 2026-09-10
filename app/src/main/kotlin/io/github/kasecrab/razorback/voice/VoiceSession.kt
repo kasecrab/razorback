@@ -53,7 +53,7 @@ class VoiceSession(
     private val chunker = SentenceChunker { sentence -> speak(sentence) }
 
     private var spokenChars = 0
-    private var replyIndex = -1
+    @Volatile private var replyIndex = -1
     private var awaitingFlush = false
     private var playbackStartedAt = 0L
     private var muted = false
@@ -218,16 +218,22 @@ class VoiceSession(
 
     // Speech out
 
+    /** Arrives on the socket reader thread: audio goes straight to the speaker, state hops to main. */
     override fun onAudio(data: ByteArray) {
         if (replyIndex < 0) return
-        if (!playback.isPlaying) {
-            playbackStartedAt = SystemClock.elapsedRealtime()
-            Log.d { "voice: first tts audio ${data.size} bytes, ${playbackStartedAt - askedAt} ms after the turn ended" }
-        }
+        val first = !playback.isPlaying
         playback.enqueue(data)
-        if (state == State.THINKING) {
-            state = State.SPEAKING
-            if (prefs[Keys.VOICE_MUTE_WHILE_SPEAKING]) mic.muted.set(true)
+        if (first) {
+            context.mainExecutor.execute {
+                if (playbackStartedAt < askedAt) {
+                    playbackStartedAt = SystemClock.elapsedRealtime()
+                    Log.d { "voice: first tts audio ${playbackStartedAt - askedAt} ms after the turn ended" }
+                }
+                if (state == State.THINKING) {
+                    state = State.SPEAKING
+                    if (prefs[Keys.VOICE_MUTE_WHILE_SPEAKING]) mic.muted.set(true)
+                }
+            }
         }
     }
 
