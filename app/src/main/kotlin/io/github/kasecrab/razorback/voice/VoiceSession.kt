@@ -214,6 +214,9 @@ class VoiceSession(
         val text = SpeechText.strip(sentence)
         if (text.isBlank()) return
         tts.speak(text)
+        // Aura only returns audio for text that has been flushed; one flush per sentence
+        // means the first sentence plays while the model is still writing the rest.
+        tts.flush()
     }
 
     // Speech out
