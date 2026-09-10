@@ -41,6 +41,7 @@ class ScreenStack(
     fun push(screen: Screen, animated: Boolean = true) {
         anim?.end()
         val under = top
+        under?.let { Keyboard.hide(it) }
         attach(screen)
         under?.onPause()
         screen.onEnter()

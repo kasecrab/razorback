@@ -57,7 +57,10 @@ class DrawerHost(context: Context) : ViewGroup(context), Themed, BackHandler {
         onThemeChanged(context.appTheme)
     }
 
-    fun open() = settle(1f, 0f)
+    fun open() {
+        io.github.kasecrab.razorback.ui.core.Keyboard.hide(this)
+        settle(1f, 0f)
+    }
 
     fun close() = settle(0f, 0f)
 

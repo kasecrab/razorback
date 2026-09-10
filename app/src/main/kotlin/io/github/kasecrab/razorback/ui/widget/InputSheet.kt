@@ -47,6 +47,8 @@ class InputSheet(context: Context, title: String, initial: String, private val o
         onSave(text)
     }
 
+    override val wantsKeyboard: Boolean get() = true
+
     override fun show() {
         super.show()
         field.edit.requestFocus()

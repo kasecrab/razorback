@@ -65,10 +65,14 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
         paintBase(context.appTheme)
     }
 
+    /** Sheets that carry their own text field keep the keyboard; everything else dismisses it. */
+    protected open val wantsKeyboard: Boolean get() = false
+
     open fun show() {
         if (shown) return
         shown = true
         val ui = context.ui()
+        if (!wantsKeyboard) io.github.kasecrab.razorback.ui.core.Keyboard.hideAll(context)
         panel.setPadding(0, 0, 0, ui.insetBottom + dp(8))
         ui.root.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         ui.host.apply(this)
