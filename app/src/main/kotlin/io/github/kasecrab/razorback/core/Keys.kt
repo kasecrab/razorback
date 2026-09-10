@@ -19,6 +19,8 @@ object Keys {
     val VOICE_ORB = Key("voice.orb", "sol")
     /** Spoken replies want to start fast; deep reasoning is opt-in here. */
     val VOICE_THINKING = EnumKey("voice.thinking", ThinkingLevel.OFF, ThinkingLevel.entries.toTypedArray())
+    /** Empty means the chat model; a fast small model makes spoken replies start sooner. */
+    val VOICE_MODEL = Key("voice.model", "")
 
     val THEME_MODE = EnumKey("theme.mode", ThemeMode.DARK, ThemeMode.entries.toTypedArray())
     val THEME_FOLLOW_SYSTEM = Key("theme.follow_system", true)

@@ -23,7 +23,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Every model from the provider, searchable and filterable; tap to use, star to keep. */
-class ModelBrowserScreen(context: Context, private val onPicked: ((ModelInfo) -> Unit)? = null) : Screen(context) {
+/** [select] false means a tap only reports the model through [onPicked] instead of making it the chat default. */
+class ModelBrowserScreen(context: Context, private val select: Boolean = true, private val onPicked: ((ModelInfo) -> Unit)? = null) : Screen(context) {
 
     private val app = App.instance
     private val catalog = app.catalog
@@ -168,7 +169,7 @@ class ModelBrowserScreen(context: Context, private val onPicked: ((ModelInfo) ->
             val m = shown[position]
             holder.row.bind(m, selected = m.id == app.engine.model, favorite = favorites.contains(m.id))
             holder.row.setOnClickListener {
-                app.engine.model = m.id
+                if (select) app.engine.model = m.id
                 onPicked?.invoke(m)
                 context.nav.pop()
             }

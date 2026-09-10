@@ -27,6 +27,7 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     private val sttRow = NavRow(context)
     private val orbRow = NavRow(context)
     private val thinkingRow = NavRow(context)
+    private val modelRow = NavRow(context)
     private val speedLabel = Caption(context)
     private val speed = SliderView(context)
 
@@ -60,6 +61,15 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         }
         list.addView(speed, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { setMargins(dp(8), 0, dp(8), 0) })
 
+        modelRow.setOnClickListener {
+            context.nav.push(io.github.kasecrab.razorback.ui.models.ModelBrowserScreen(context, select = false) { prefs[Keys.VOICE_MODEL] = it.id })
+        }
+        modelRow.setOnLongClickListener {
+            prefs[Keys.VOICE_MODEL] = ""
+            sync()
+            true
+        }
+        list.addView(modelRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         thinkingRow.setOnClickListener {
             ChoiceSheet(context, context.getString(R.string.thinking), io.github.kasecrab.razorback.model.ThinkingLevel.entries.map { it.name to "${it.label} · ${it.hint}" }, prefs[Keys.VOICE_THINKING].name) {
                 prefs[Keys.VOICE_THINKING] = io.github.kasecrab.razorback.model.ThinkingLevel.fromName(it)
@@ -94,6 +104,8 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         sync()
     }
 
+    override fun onResume() = sync()
+
     private fun sync() {
         val voice = prefs[Keys.VOICE_TTS_VOICE]
         voiceRow.set(R.drawable.ic_waveform, context.getString(R.string.voice_voice), VOICES.firstOrNull { it.first == voice }?.second ?: voice)
@@ -102,6 +114,8 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         sttRow.set(R.drawable.ic_mic, context.getString(R.string.voice_stt_model), STT_MODELS.firstOrNull { it.first == stt }?.second ?: stt)
         orbRow.set(R.drawable.ic_image, context.getString(R.string.cd_orb_style), Orbs.byId(prefs[Keys.VOICE_ORB]).name)
         thinkingRow.set(R.drawable.ic_brain, context.getString(R.string.voice_thinking_row), prefs[Keys.VOICE_THINKING].label)
+        val vm = prefs[Keys.VOICE_MODEL]
+        modelRow.set(R.drawable.ic_star, context.getString(R.string.voice_model_row), if (vm.isEmpty()) context.getString(R.string.voice_model_same) else vm)
     }
 
     private companion object {

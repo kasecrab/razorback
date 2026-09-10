@@ -44,7 +44,7 @@ class ModelsSettingsScreen(context: Context) : Screen(context) {
         list.orientation = LinearLayout.VERTICAL
         list.setPadding(0, 0, 0, dp(32))
         list.addView(SectionHeader(context).apply { setText(R.string.models_defaults) })
-        defaultRow.setOnClickListener { context.nav.push(ModelBrowserScreen(context) { rebuild() }) }
+        defaultRow.setOnClickListener { context.nav.push(ModelBrowserScreen(context, onPicked = { rebuild() })) }
         list.addView(defaultRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         thinkingRow.setOnClickListener {
             ChoiceSheet(context, context.getString(R.string.thinking), ThinkingLevel.entries.map { it.name to "${it.label} · ${it.hint}" }, app.engine.thinking.name) {
