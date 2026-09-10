@@ -63,6 +63,8 @@ class Playback(private val onDrained: () -> Unit) {
             return
         }
         track = t
+        headBase = 0L
+        enqueuedBytes.set(0)
         running = true
         val th = Thread({ loop(t) }, "playback")
         thread = th
@@ -103,12 +105,17 @@ class Playback(private val onDrained: () -> Unit) {
      */
     fun playedBytes(): Long {
         val t = track ?: return 0L
-        return try {
-            (t.playbackHeadPosition.toLong() and 0xFFFFFFFFL) * 2L
-        } catch (_: IllegalStateException) {
-            0L
-        }
+        return maxOf(0L, (rawHead(t) - headBase) * 2L)
     }
+
+    private fun rawHead(t: AudioTrack): Long = try {
+        t.playbackHeadPosition.toLong() and 0xFFFFFFFFL
+    } catch (_: IllegalStateException) {
+        headBase
+    }
+
+    /** Whatever the head reads after a flush is the new zero; no reliance on the track resetting it. */
+    @Volatile private var headBase = 0L
 
     /** Under the lock: a bigger ring with the queued audio straightened out at the front. */
     private fun grow(needed: Int) {
@@ -142,11 +149,11 @@ class Playback(private val onDrained: () -> Unit) {
         }
         track?.let {
             try {
-                // flush() also puts the play head back to zero, matching the byte count below.
                 it.pause()
                 it.flush()
             } catch (_: IllegalStateException) {
             }
+            headBase = rawHead(it)
         }
         enqueuedBytes.set(0)
         playing = false

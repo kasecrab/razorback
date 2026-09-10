@@ -320,15 +320,19 @@ class VoiceSession(
         }
     }
 
+    /** Socket thread, in order with the audio: the sentence boundary goes to the clock at once, the rest to main. */
     override fun onFlushed() {
         if (replyIndex < 0) return
         clock.flushed()
-        if (toolRound) {
-            // Nothing more will be said until the tool has answered; let the cue play out.
-            if (clock.allFlushed) playback.markEnd()
-            return
+        context.mainExecutor.execute {
+            if (replyIndex < 0) return@execute
+            if (toolRound) {
+                // Nothing more will be said until the tool has answered; let the cue play out.
+                if (clock.allFlushed) playback.markEnd()
+                return@execute
+            }
+            maybeEnd()
         }
-        maybeEnd()
     }
 
     override fun onCleared() {}

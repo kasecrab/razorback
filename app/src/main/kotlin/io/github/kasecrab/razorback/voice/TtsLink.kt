@@ -20,6 +20,11 @@ class TtsLink(
     private val model: () -> String,
     private val speed: () -> Float,
 ) {
+    /**
+     * [onAudio] and [onFlushed] arrive on the socket thread, in the order the voice sent
+     * them, so a listener can tell exactly which audio belongs to which sentence. The rest
+     * arrives on the main thread.
+     */
     interface Listener {
         fun onAudio(data: ByteArray)
         fun onFlushed()
@@ -140,7 +145,7 @@ class TtsLink(
                     null
                 }
                 when (type) {
-                    "Flushed" -> main.post { listener?.onFlushed() }
+                    "Flushed" -> listener?.onFlushed()
                     "Cleared" -> main.post { listener?.onCleared() }
                     "Warning", "Error" -> Log.w("tts: $text")
                 }
