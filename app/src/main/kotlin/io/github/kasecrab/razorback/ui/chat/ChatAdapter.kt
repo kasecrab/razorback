@@ -3,6 +3,7 @@ package io.github.kasecrab.razorback.ui.chat
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import io.github.kasecrab.razorback.ui.core.ui
 import io.github.kasecrab.razorback.model.Message
 import io.github.kasecrab.razorback.model.Role
 
@@ -49,6 +50,7 @@ class ChatAdapter(private val messages: List<Message>) : RecyclerView.Adapter<Ch
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
+        holder.itemView.context.ui().host.refresh(holder.itemView)
         val m = messages[position]
         when (val v = holder.itemView) {
             is UserMessageView -> v.bind(m)

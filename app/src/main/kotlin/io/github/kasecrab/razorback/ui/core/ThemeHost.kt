@@ -16,6 +16,10 @@ class ThemeHost(initial: Theme) {
     var theme: Theme = initial
         private set
 
+    /** Bumped on every switch, so views that were off screen at the time can catch up. */
+    var version: Int = 1
+        private set
+
     private val listeners = ArrayList<(Theme) -> Unit>(2)
 
     fun onChange(listener: (Theme) -> Unit) {
@@ -24,8 +28,20 @@ class ThemeHost(initial: Theme) {
 
     fun set(root: View, next: Theme) {
         theme = next
+        version++
         apply(root, next)
         for (l in listeners) l(next)
+    }
+
+    /**
+     * Recycled list rows live outside the tree while a theme changes. Call this when a row
+     * is bound: it re-themes the row once per switch and is free otherwise.
+     */
+    fun refresh(view: View) {
+        val seen = view.getTag(io.github.kasecrab.razorback.R.id.theme_version) as? Int
+        if (seen == version) return
+        apply(view, theme)
+        view.setTag(io.github.kasecrab.razorback.R.id.theme_version, version)
     }
 
     fun apply(view: View, theme: Theme = this.theme) {

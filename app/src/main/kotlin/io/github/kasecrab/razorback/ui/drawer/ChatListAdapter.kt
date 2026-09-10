@@ -14,6 +14,7 @@ import io.github.kasecrab.razorback.ui.core.Themed
 import io.github.kasecrab.razorback.ui.core.Type
 import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
+import io.github.kasecrab.razorback.ui.core.ui
 import io.github.kasecrab.razorback.ui.widget.Shapes
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -83,6 +84,7 @@ class ChatListAdapter(
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
+        holder.itemView.context.ui().host.refresh(holder.itemView)
         when (val item = items[position]) {
             is Item.Header -> (holder.itemView as HeaderView).text = item.label
             is Item.Row -> {

@@ -14,6 +14,7 @@ import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
 import io.github.kasecrab.razorback.ui.core.uiScope
+import io.github.kasecrab.razorback.ui.core.ui
 import io.github.kasecrab.razorback.ui.widget.Caption
 import io.github.kasecrab.razorback.ui.widget.Chip
 import io.github.kasecrab.razorback.ui.widget.TextField
@@ -163,6 +164,7 @@ class ModelBrowserScreen(context: Context, private val onPicked: ((ModelInfo) ->
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
+            context.ui().host.refresh(holder.row)
             val m = shown[position]
             holder.row.bind(m, selected = m.id == app.engine.model, favorite = favorites.contains(m.id))
             holder.row.setOnClickListener {
