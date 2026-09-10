@@ -125,7 +125,14 @@ class Playback(private val onDrained: () -> Unit) {
     fun stop() {
         if (!running) return
         running = false
-        synchronized(lock) { lock.notifyAll() }
+        synchronized(lock) {
+            // Whatever was still queued belongs to the session that just ended.
+            head = 0
+            size = 0
+            endMarked = false
+            generation++
+            lock.notifyAll()
+        }
         try {
             thread?.join(300)
         } catch (_: InterruptedException) {

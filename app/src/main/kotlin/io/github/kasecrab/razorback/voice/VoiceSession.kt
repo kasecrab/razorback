@@ -78,6 +78,8 @@ class VoiceSession(
         if (state == State.IDLE) return
         engine.removeListener(this)
         if (engine.isStreaming && replyIndex >= 0) engine.stop()
+        // Nothing that arrives from here on is ours: not audio, not text.
+        replyIndex = -1
         mic.stop()
         stt.stop()
         tts.stop()

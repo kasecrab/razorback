@@ -127,10 +127,13 @@ class TtsLink(
             }
 
             override fun onBinary(ws: WebSocketClient, data: ByteArray) {
+                // A socket that stop() let go of may still drain for a moment; its audio is not ours.
+                if (this@TtsLink.ws !== ws) return
                 listener?.onAudio(data)
             }
 
             override fun onText(ws: WebSocketClient, text: String) {
+                if (this@TtsLink.ws !== ws) return
                 val type = try {
                     JSONObject(text).str("type")
                 } catch (_: JSONException) {

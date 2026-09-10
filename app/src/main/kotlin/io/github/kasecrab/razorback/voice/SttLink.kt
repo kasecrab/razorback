@@ -76,7 +76,9 @@ class SttLink(private val key: () -> String?, private val model: () -> String) {
                 backoffMs = 400L
             }
 
-            override fun onText(ws: WebSocketClient, text: String) = handle(text)
+            override fun onText(ws: WebSocketClient, text: String) {
+                if (this@SttLink.ws === ws) handle(text)
+            }
 
             override fun onClosed(ws: WebSocketClient, code: Int, reason: String) = dropped(ws, null)
 
