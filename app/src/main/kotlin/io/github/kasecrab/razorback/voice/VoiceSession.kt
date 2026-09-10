@@ -69,6 +69,10 @@ class VoiceSession(
     private var muted = false
     /** A finished turn that arrived while the previous reply was still being cancelled. */
     private var pendingTurn: String? = null
+    /** Words the voice has been given this reply, to tell the speaker's echo from the person. */
+    private val spokenWords = HashSet<String>(256)
+    /** Speech heard over the reply that has not yet proved to be the person rather than the speaker. */
+    private var tentative = false
 
     /** Which service listens, from settings: Nova for accuracy, Flux for the quickest turn-taking. */
     private fun ears(): Ears {
@@ -147,18 +151,37 @@ class VoiceSession(
     override fun onTurn(kind: Ears.Turn, transcript: String, turnIndex: Int) {
         when (kind) {
             Ears.Turn.START -> {
-                if (state == State.SPEAKING) {
-                    if (echoGuard()) return
+                if (busy) {
+                    // Over the reply, speech is not trusted until it is clearly not the
+                    // speaker heard back through the microphone.
+                    if (echoGuard() || !surelyThePerson(transcript)) {
+                        tentative = true
+                        return
+                    }
                     interrupt()
                 }
-                if (state == State.THINKING) interrupt()
+                tentative = false
                 state = State.USER_SPEAKING
                 listener?.onUserText(transcript, false)
             }
             Ears.Turn.UPDATE, Ears.Turn.EAGER_END, Ears.Turn.RESUMED -> {
-                if (state == State.USER_SPEAKING) listener?.onUserText(transcript, false)
+                if (state == State.USER_SPEAKING) {
+                    listener?.onUserText(transcript, false)
+                } else if (tentative && busy && surelyThePerson(transcript)) {
+                    tentative = false
+                    interrupt()
+                    state = State.USER_SPEAKING
+                    listener?.onUserText(transcript, false)
+                }
             }
             Ears.Turn.END -> {
+                if (tentative) {
+                    tentative = false
+                    if (busy) {
+                        if (transcript.isBlank() || isEcho(transcript)) return
+                        interrupt()
+                    }
+                }
                 if (transcript.isBlank()) {
                     if (state == State.USER_SPEAKING) state = State.LISTENING
                     return
@@ -168,6 +191,33 @@ class VoiceSession(
             }
         }
     }
+
+    /** A reply is being made or read; speech now is either a cut-in or the speaker's echo. */
+    private val busy: Boolean get() = state == State.SPEAKING || state == State.THINKING
+
+    /** Two or more words that are not just the reply coming back through the microphone. */
+    private fun surelyThePerson(transcript: String): Boolean = wordCount(transcript) >= 2 && !isEcho(transcript)
+
+    /** True when most of what was heard is what the voice has just been saying. */
+    private fun isEcho(transcript: String): Boolean {
+        if (state != State.SPEAKING) return false
+        var total = 0
+        var known = 0
+        for (w in words(transcript)) {
+            total++
+            if (w in spokenWords) known++
+        }
+        return total > 0 && known * 10 >= total * 6
+    }
+
+    private fun wordCount(text: String): Int {
+        var n = 0
+        for (w in words(text)) n++
+        return n
+    }
+
+    private fun words(text: String): Sequence<String> =
+        text.lowercase().splitToSequence(NON_WORD).filter { it.isNotEmpty() }
 
     override fun onDropped(reconnecting: Boolean) {
         if (state == State.LISTENING || state == State.USER_SPEAKING) state = State.RECONNECTING
@@ -202,6 +252,8 @@ class VoiceSession(
         spokenChars = 0
         streamDone = false
         toolRound = false
+        tentative = false
+        spokenWords.clear()
         replyStartBytes = playback.enqueuedBytes.get()
         state = State.THINKING
         listener?.onReplyStarted()
@@ -291,6 +343,7 @@ class VoiceSession(
         if (text.isBlank()) return
         Log.d { "voice: sentence of ${text.length} chars to aura ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
         clock.sentence(text)
+        for (w in words(text)) spokenWords.add(w)
         listener?.onSentence(text)
         tts.speak(text)
         // Aura only returns audio for text that has been flushed; one flush per sentence
@@ -354,6 +407,7 @@ class VoiceSession(
     private companion object {
         /** Said while a tool runs, so the silence is not mistaken for a stall. */
         val CUES = listOf("Let me check.", "One moment.", "Let me look that up.")
+        val NON_WORD = Regex("[^\\p{L}\\p{N}']+")
     }
 
     override fun onReset() {}
