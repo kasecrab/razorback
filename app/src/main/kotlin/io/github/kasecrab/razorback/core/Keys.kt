@@ -12,6 +12,12 @@ object Keys {
     val FAVORITES = Key("model.favorites", "")
     val WEB_SEARCH = Key("tools.web_search", true)
 
+    val VOICE_STT_MODEL = Key("voice.stt_model", "flux-general-en")
+    val VOICE_TTS_VOICE = Key("voice.tts_voice", "aura-2-thalia-en")
+    val VOICE_SPEED = Key("voice.speed", 1.0f)
+    val VOICE_MUTE_WHILE_SPEAKING = Key("voice.mute_while_speaking", false)
+    val VOICE_ORB = Key("voice.orb", "sol")
+
     val THEME_MODE = EnumKey("theme.mode", ThemeMode.DARK, ThemeMode.entries.toTypedArray())
     val THEME_FOLLOW_SYSTEM = Key("theme.follow_system", true)
     /** "p<index>" for a palette colour, "dyn" for wallpaper colours, "h<degrees>" for a custom hue. */

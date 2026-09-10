@@ -45,6 +45,11 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <service
+            android:name=".voice.VoiceService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <provider
             android:name=".media.CameraProvider"
             android:authorities="io.github.kasecrab.razorback.camera"
