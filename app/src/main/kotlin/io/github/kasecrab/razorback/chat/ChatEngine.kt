@@ -247,7 +247,7 @@ class ChatEngine(
                     null
                 }
             }
-            main.post { finish(conv, reply, outcome, started, saved, round) }
+            main.post { finish(conv, reply, outcome, started, saved, round, thinking, model, preferLatency) }
         }
     }
 
@@ -325,7 +325,17 @@ class ChatEngine(
         }
     }
 
-    private fun finish(conv: Conversation, reply: Message, outcome: TurnRunner.Outcome, started: Long, images: List<String>, round: Int) {
+    private fun finish(
+        conv: Conversation,
+        reply: Message,
+        outcome: TurnRunner.Outcome,
+        started: Long,
+        images: List<String>,
+        round: Int,
+        thinking: ThinkingLevel,
+        model: String,
+        preferLatency: Boolean,
+    ) {
         main.removeCallbacks(flush)
         flush.run()
         synchronized(lock) { pendingFirstToken = 0L }
