@@ -8,19 +8,25 @@ class Key<T : Any>(val name: String, val default: T)
 
 class EnumKey<E : Enum<E>>(val name: String, val default: E, val values: Array<E>)
 
-/** Typed wrapper over one SharedPreferences file with a strong-ref change fan-out. */
-class Prefs(context: Context) {
+/**
+ * Typed wrapper over one SharedPreferences file with a change fan-out. The object itself
+ * is the platform listener: SharedPreferences only holds listeners weakly, and a separate
+ * listener field is exactly what R8 folds away in release builds, after which the first
+ * garbage collection silently ends every theme and model update.
+ */
+class Prefs(context: Context) : SharedPreferences.OnSharedPreferenceChangeListener {
 
     private val sp: SharedPreferences = context.getSharedPreferences("razorback", Context.MODE_PRIVATE)
     private val listeners = ArrayList<(String) -> Unit>(4)
 
-    // SharedPreferences keeps listeners weakly; this field keeps ours alive.
-    private val spListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key != null) for (l in listeners) l(key)
+    init {
+        sp.registerOnSharedPreferenceChangeListener(this)
     }
 
-    init {
-        sp.registerOnSharedPreferenceChangeListener(spListener)
+    override fun onSharedPreferenceChanged(prefs: SharedPreferences, key: String?) {
+        if (key == null) return
+        // Copy: a listener may add or remove listeners while being told.
+        for (l in listeners.toTypedArray()) l(key)
     }
 
     fun onChange(listener: (String) -> Unit) {
