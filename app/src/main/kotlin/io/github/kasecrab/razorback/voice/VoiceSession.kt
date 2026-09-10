@@ -61,6 +61,9 @@ class VoiceSession(
     private var spokenChars = 0
     @Volatile private var replyIndex = -1
     private var streamDone = false
+    /** The model asked for a tool; the answer comes in a later reply of the same turn. */
+    private var toolRound = false
+    private var cues = 0
     private var replyStartBytes = 0L
     private var playbackStartedAt = 0L
     private var muted = false
@@ -98,6 +101,7 @@ class VoiceSession(
         clock.reset()
         pendingTurn = null
         streamDone = false
+        toolRound = false
         state = State.IDLE
     }
 
@@ -163,6 +167,7 @@ class VoiceSession(
         chunker.reset()
         clock.reset()
         streamDone = false
+        toolRound = false
         if (engine.isStreaming) engine.stop()
         replyIndex = -1
     }
@@ -181,6 +186,7 @@ class VoiceSession(
         clock.reset()
         spokenChars = 0
         streamDone = false
+        toolRound = false
         replyStartBytes = playback.enqueuedBytes.get()
         state = State.THINKING
         listener?.onReplyStarted()
@@ -214,6 +220,13 @@ class VoiceSession(
                 listener?.onError(m.error ?: "The model did not answer")
                 replyIndex = -1
                 state = State.LISTENING
+                return
+            }
+            if (m.status == MessageStatus.COMPLETE && m.toolCalls.isNotEmpty()) {
+                // The engine is about to run the tool and ask again. Say so, so the wait
+                // is not dead air, and keep the turn open for the reply that follows.
+                toolRound = true
+                if (m.content.isBlank()) speak(CUES[cues++ % CUES.size])
                 return
             }
             streamDone = true
@@ -295,6 +308,11 @@ class VoiceSession(
     override fun onFlushed() {
         if (replyIndex < 0) return
         clock.flushed()
+        if (toolRound) {
+            // Nothing more will be said until the tool has answered; let the cue play out.
+            if (clock.allFlushed) playback.markEnd()
+            return
+        }
         maybeEnd()
     }
 
@@ -302,15 +320,36 @@ class VoiceSession(
 
     private fun onDrained() {
         context.mainExecutor.execute {
-            if (state == State.SPEAKING) {
-                replyIndex = -1
-                mic.muted.set(muted)
-                state = State.LISTENING
+            if (state != State.SPEAKING) return@execute
+            if (toolRound || (engine.isStreaming && !streamDone)) {
+                // The cue has been said; the answer is still on its way.
+                state = State.THINKING
+                return@execute
             }
+            replyIndex = -1
+            mic.muted.set(muted)
+            state = State.LISTENING
         }
     }
 
+    private companion object {
+        /** Said while a tool runs, so the silence is not mistaken for a stall. */
+        val CUES = listOf("Let me check.", "One moment.", "Let me look that up.")
+    }
+
     override fun onReset() {}
-    override fun onMessageAdded(index: Int) {}
+
+    /**
+     * A turn can hold several replies: one that only asks for a tool, then the answer.
+     * Whichever assistant message starts streaming while the turn is ours is the one to read.
+     */
+    override fun onMessageAdded(index: Int) {
+        if (state != State.THINKING && state != State.SPEAKING) return
+        val m = engine.messages.getOrNull(index) ?: return
+        if (m.role != Role.ASSISTANT || m.status != MessageStatus.STREAMING) return
+        replyIndex = index
+        spokenChars = 0
+        toolRound = false
+    }
     override fun onMessageRemoved(index: Int) {}
 }

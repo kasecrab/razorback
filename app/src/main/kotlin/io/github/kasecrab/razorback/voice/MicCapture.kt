@@ -79,6 +79,7 @@ class MicCapture(
     private fun loop(rec: AudioRecord) {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
         val buf = ByteArray(CHUNK_BYTES)
+        var chunks = 0
         try {
             rec.startRecording()
         } catch (e: IllegalStateException) {
@@ -103,6 +104,7 @@ class MicCapture(
             } else {
                 level.set(rms(buf, filled))
             }
+            if (Log.ON && ++chunks % 25 == 0) Log.d { "mic: level ${level.get()} of 1000 after ${chunks * CHUNK_MS / 1000} s" }
             onChunk(buf, filled)
         }
     }
