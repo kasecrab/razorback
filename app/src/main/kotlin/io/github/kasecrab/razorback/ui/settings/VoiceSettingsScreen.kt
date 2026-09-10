@@ -28,6 +28,7 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     private val voiceRow = NavRow(context)
     private val sttRow = NavRow(context)
     private val turnRow = NavRow(context)
+    private val micRow = NavRow(context)
     private val dictationRow = NavRow(context)
     private val languageRow = NavRow(context)
     private val orbRow = NavRow(context)
@@ -96,6 +97,13 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
             }.show()
         }
         list.addView(turnRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        micRow.setOnClickListener {
+            ChoiceSheet(context, context.getString(R.string.voice_mic), MICS.map { it.first to context.getString(it.second) }, prefs[Keys.VOICE_MIC]) {
+                prefs[Keys.VOICE_MIC] = it
+                sync()
+            }.show()
+        }
+        list.addView(micRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         list.addView(SectionHeader(context).apply { setText(R.string.voice_dictation) })
         dictationRow.setOnClickListener {
             ChoiceSheet(context, context.getString(R.string.voice_dictation_model), DICTATION_MODELS, prefs[Keys.VOICE_DICTATION_MODEL]) {
@@ -140,6 +148,8 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         sttRow.set(R.drawable.ic_mic, context.getString(R.string.voice_stt_model), STT_MODELS.firstOrNull { it.first == stt }?.second ?: stt)
         val turn = prefs[Keys.VOICE_TURN]
         turnRow.set(R.drawable.ic_check, context.getString(R.string.voice_turn), context.getString(TURNS.firstOrNull { it.first == turn }?.second ?: R.string.voice_turn_balanced))
+        val mic = prefs[Keys.VOICE_MIC]
+        micRow.set(R.drawable.ic_waveform, context.getString(R.string.voice_mic), context.getString(MICS.firstOrNull { it.first == mic }?.second ?: R.string.voice_mic_call))
         val dm = prefs[Keys.VOICE_DICTATION_MODEL]
         dictationRow.set(R.drawable.ic_edit, context.getString(R.string.voice_dictation_model), DICTATION_MODELS.firstOrNull { it.first == dm }?.second ?: dm)
         val lang = prefs[Keys.VOICE_LANGUAGE]
@@ -153,8 +163,13 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
 
     private companion object {
         val STT_MODELS = listOf(
-            "flux-general-en" to "Flux · English",
-            "flux-general-multi" to "Flux · Multilingual (switches between ten languages)",
+            "nova-3" to "Nova-3 · hears as accurately as dictation, uses the language below",
+            "flux-general-en" to "Flux · English, quickest turn-taking",
+            "flux-general-multi" to "Flux · Multilingual, switches between ten languages",
+        )
+        val MICS = listOf(
+            "call" to R.string.voice_mic_call,
+            "clean" to R.string.voice_mic_clean,
         )
         val TURNS = listOf(
             "quick" to R.string.voice_turn_quick,

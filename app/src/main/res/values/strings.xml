@@ -162,6 +162,9 @@
     <string name="voice_turn_quick">Quick · answers after a short pause, may cut you off</string>
     <string name="voice_turn_balanced">Balanced</string>
     <string name="voice_turn_patient">Patient · waits through long pauses</string>
+    <string name="voice_mic">Microphone</string>
+    <string name="voice_mic_call">Call processing · cancels the speaker’s echo so you can cut in</string>
+    <string name="voice_mic_clean">Clean · hears more faithfully; use with mute while speaking</string>
     <string name="voice_dictation">Typing by voice</string>
     <string name="voice_dictation_model">Dictation model</string>
     <string name="voice_language">Language</string>

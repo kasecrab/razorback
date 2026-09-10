@@ -12,8 +12,10 @@ object Keys {
     val FAVORITES = Key("model.favorites", "")
     val WEB_SEARCH = Key("tools.web_search", true)
 
-    /** Flux model for voice mode: "flux-general-en" or "flux-general-multi". */
-    val VOICE_STT_MODEL = Key("voice.stt_model", "flux-general-en")
+    /** Ears for voice mode: "nova-3" (same accuracy as dictation), "flux-general-en" or "flux-general-multi" (built-in turn taking). */
+    val VOICE_STT_MODEL = Key("voice.stt_model", "nova-3")
+    /** "call" records through the phone's call path with echo cancelling; "clean" records plainly, as dictation does. */
+    val VOICE_MIC = Key("voice.mic", "call")
     /** How sure Flux must be that the person has finished before the model answers: quick, balanced, patient. */
     val VOICE_TURN = Key("voice.turn", "balanced")
     /** Nova model for typing by voice. */

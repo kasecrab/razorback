@@ -3,22 +3,29 @@ package io.github.kasecrab.razorback.voice
 import android.os.Handler
 import android.os.Looper
 import io.github.kasecrab.razorback.core.Log
+import io.github.kasecrab.razorback.core.arr
+import io.github.kasecrab.razorback.core.bool
+import io.github.kasecrab.razorback.core.obj
 import io.github.kasecrab.razorback.core.str
 import io.github.kasecrab.razorback.core.ws.HandshakeException
 import io.github.kasecrab.razorback.core.ws.WebSocketClient
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URLEncoder
 
 /**
- * Deepgram Flux: transcription with turn detection built in. Audio streams the whole
- * time; the model says when the person starts, pauses and finishes a turn.
+ * Nova-3 as the ears of voice mode: the same model and formatting as dictation, so what
+ * it hears is as accurate, with the turn worked out from its endpointing. A turn starts
+ * with the first words, is updated by every interim, and ends when Deepgram marks the
+ * speech final or the utterance-end timer runs out.
  */
-class SttLink(
+class NovaEars(
     private val key: () -> String?,
     private val model: () -> String,
-    /** One of "quick", "balanced", "patient": how long a pause counts as the end of a turn. */
-    private val turn: () -> String = { "balanced" },
+    private val language: () -> String,
+    /** "quick", "balanced" or "patient": how much silence ends a turn. */
+    private val turn: () -> String,
 ) : Ears {
 
     override var listener: Ears.Listener? = null
@@ -28,6 +35,9 @@ class SttLink(
     private var ws: WebSocketClient? = null
     @Volatile private var armed = false
     private var backoffMs = 400L
+    private val spoken = Spoken()
+    private var turnOpen = false
+    private var turnIndex = 0
 
     override fun start() {
         if (armed) return
@@ -41,7 +51,7 @@ class SttLink(
         try {
             socket.sendBinary(chunk, 0, len)
         } catch (e: IOException) {
-            Log.d { "stt send failed: ${e.message}" }
+            Log.d { "nova send failed: ${e.message}" }
         }
     }
 
@@ -53,21 +63,22 @@ class SttLink(
             if (socket.isOpen) socket.sendText("{\"type\":\"CloseStream\"}")
             socket.close()
         }
+        spoken.clear()
+        turnOpen = false
     }
 
     private fun url(): String {
-        val m = model()
-        val sb = StringBuilder("wss://api.deepgram.com/v2/listen?model=")
-        sb.append(java.net.URLEncoder.encode(m, "UTF-8"))
+        val sb = StringBuilder("wss://api.deepgram.com/v1/listen?model=")
+        sb.append(URLEncoder.encode(model(), "UTF-8"))
         sb.append("&encoding=linear16&sample_rate=").append(MicCapture.SAMPLE_RATE)
-        // A lower threshold answers sooner but may cut a slow speaker off; the timeout is the
-        // silence after which the turn ends whatever the confidence.
+        sb.append("&channels=1&interim_results=true&punctuate=true&smart_format=true&filler_words=false")
         when (turn()) {
-            "quick" -> sb.append("&eot_threshold=0.5&eot_timeout_ms=3000")
-            "patient" -> sb.append("&eot_threshold=0.85&eot_timeout_ms=8000")
-            else -> sb.append("&eot_threshold=0.7&eot_timeout_ms=5000")
+            "quick" -> sb.append("&endpointing=200&utterance_end_ms=1000")
+            "patient" -> sb.append("&endpointing=700&utterance_end_ms=2000")
+            else -> sb.append("&endpointing=350&utterance_end_ms=1200")
         }
-        if (m.endsWith("-multi")) sb.append("&language=multi")
+        val lang = language()
+        if (lang.isNotBlank()) sb.append("&language=").append(URLEncoder.encode(lang, "UTF-8"))
         return sb.toString()
     }
 
@@ -81,10 +92,11 @@ class SttLink(
         val socket = WebSocketClient(url(), mapOf("Authorization" to "Token $apiKey"), object : WebSocketClient.Listener {
             override fun onOpen(ws: WebSocketClient) {
                 backoffMs = 400L
+                main.post { listener?.onConnected() }
             }
 
             override fun onText(ws: WebSocketClient, text: String) {
-                if (this@SttLink.ws === ws) handle(text)
+                if (this@NovaEars.ws === ws) handle(text)
             }
 
             override fun onClosed(ws: WebSocketClient, code: Int, reason: String) = dropped(ws, null)
@@ -104,7 +116,7 @@ class SttLink(
             main.post { listener?.onError("Deepgram refused the key") }
             return
         }
-        Log.w("flux socket dropped: ${error?.message ?: "closed"}")
+        Log.w("nova socket dropped: ${error?.message ?: "closed"}")
         main.post { listener?.onDropped(true) }
         val wait = backoffMs
         backoffMs = minOf(backoffMs * 2, 16000L)
@@ -118,21 +130,39 @@ class SttLink(
             return
         }
         when (json.str("type")) {
-            "Connected" -> main.post { listener?.onConnected() }
-            "TurnInfo" -> {
-                val kind = when (json.str("event")) {
-                    "StartOfTurn" -> Ears.Turn.START
-                    "Update" -> Ears.Turn.UPDATE
-                    "EagerEndOfTurn" -> Ears.Turn.EAGER_END
-                    "TurnResumed" -> Ears.Turn.RESUMED
-                    "EndOfTurn" -> Ears.Turn.END
-                    else -> return
-                }
-                val transcript = json.str("transcript")?.trim().orEmpty()
-                val index = json.optInt("turn_index", 0)
-                main.post { listener?.onTurn(kind, transcript, index) }
+            "Results" -> {
+                val transcript = json.obj("channel")?.arr("alternatives")?.optJSONObject(0)?.str("transcript")?.trim().orEmpty()
+                val isFinal = json.bool("is_final") ?: false
+                val speechFinal = json.bool("speech_final") ?: false
+                main.post { results(transcript, isFinal, speechFinal) }
             }
-            "Error" -> Log.w("flux: $text")
+            "UtteranceEnd" -> main.post { endTurn() }
+            "Error" -> Log.w("nova: $text")
         }
+    }
+
+    private fun results(transcript: String, isFinal: Boolean, speechFinal: Boolean) {
+        if (transcript.isNotEmpty()) {
+            if (isFinal) spoken.final(transcript) else spoken.interim(transcript)
+            val text = spoken.text
+            if (!turnOpen) {
+                turnOpen = true
+                listener?.onTurn(Ears.Turn.START, text, turnIndex)
+            } else {
+                listener?.onTurn(Ears.Turn.UPDATE, text, turnIndex)
+            }
+        } else if (isFinal) {
+            spoken.utteranceEnd()
+        }
+        if (speechFinal) endTurn()
+    }
+
+    private fun endTurn() {
+        if (!turnOpen) return
+        val text = spoken.committed.ifEmpty { spoken.text }
+        spoken.clear()
+        turnOpen = false
+        listener?.onTurn(Ears.Turn.END, text, turnIndex)
+        turnIndex++
     }
 }

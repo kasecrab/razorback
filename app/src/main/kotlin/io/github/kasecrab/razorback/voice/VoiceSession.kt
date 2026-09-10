@@ -21,7 +21,7 @@ class VoiceSession(
     private val prefs: Prefs,
     private val secrets: Secrets,
     private val engine: ChatEngine,
-) : SttLink.Listener, TtsLink.Listener, ChatEngine.Listener {
+) : Ears.Listener, TtsLink.Listener, ChatEngine.Listener {
 
     enum class State { IDLE, CONNECTING, LISTENING, USER_SPEAKING, THINKING, SPEAKING, RECONNECTING, ERROR }
 
@@ -48,9 +48,9 @@ class VoiceSession(
     val inLevel: Float get() = mic.level.get() / 1000f
     val outLevel: Float get() = playback.level.get() / 1000f
 
-    private val stt = SttLink({ secrets.get(Secrets.DEEPGRAM) }, { prefs[Keys.VOICE_STT_MODEL] }, { prefs[Keys.VOICE_TURN] })
+    private var stt: Ears = ears()
     private val tts = TtsLink({ secrets.get(Secrets.DEEPGRAM) }, { prefs[Keys.VOICE_TTS_VOICE] }, { prefs[Keys.VOICE_SPEED] })
-    private val mic = MicCapture(MediaRecorder.AudioSource.VOICE_COMMUNICATION) { buf, len -> stt.audio(buf, len) }
+    private var mic = MicCapture(MediaRecorder.AudioSource.VOICE_COMMUNICATION) { buf, len -> stt.audio(buf, len) }
     private val playback = Playback { onDrained() }
     private val focus = AudioFocus(context) { stop() }
     private val chunker = SentenceChunker { sentence -> speak(sentence) }
@@ -70,10 +70,25 @@ class VoiceSession(
     /** A finished turn that arrived while the previous reply was still being cancelled. */
     private var pendingTurn: String? = null
 
+    /** Which service listens, from settings: Nova for accuracy, Flux for the quickest turn-taking. */
+    private fun ears(): Ears {
+        val m = prefs[Keys.VOICE_STT_MODEL]
+        return if (m.startsWith("flux")) {
+            SttLink({ secrets.get(Secrets.DEEPGRAM) }, { m }, { prefs[Keys.VOICE_TURN] })
+        } else {
+            NovaEars({ secrets.get(Secrets.DEEPGRAM) }, { m }, { prefs[Keys.VOICE_LANGUAGE] }, { prefs[Keys.VOICE_TURN] })
+        }
+    }
+
     fun start() {
         if (isActive) return
         state = State.CONNECTING
         engine.addListener(this)
+        stt = ears()
+        // Call processing cancels the speaker's echo so the person can cut in; the plain
+        // source hears more faithfully on phones whose call path narrows the sound.
+        val source = if (prefs[Keys.VOICE_MIC] == "clean") MediaRecorder.AudioSource.VOICE_RECOGNITION else MediaRecorder.AudioSource.VOICE_COMMUNICATION
+        mic = MicCapture(source) { buf, len -> stt.audio(buf, len) }
         stt.listener = this
         tts.listener = this
         focus.acquire()
@@ -108,8 +123,8 @@ class VoiceSession(
     /** Debug builds only: feed a turn as if the person had said it, for phones and emulators without a usable mic. */
     fun injectTurn(text: String) {
         if (!io.github.kasecrab.razorback.BuildConfig.DEBUG || !isActive) return
-        onTurn(SttLink.Turn.START, text, -1)
-        onTurn(SttLink.Turn.END, text, -1)
+        onTurn(Ears.Turn.START, text, -1)
+        onTurn(Ears.Turn.END, text, -1)
     }
 
     fun setMuted(on: Boolean) {
@@ -129,9 +144,9 @@ class VoiceSession(
         if (state == State.CONNECTING || state == State.RECONNECTING) state = State.LISTENING
     }
 
-    override fun onTurn(kind: SttLink.Turn, transcript: String, turnIndex: Int) {
+    override fun onTurn(kind: Ears.Turn, transcript: String, turnIndex: Int) {
         when (kind) {
-            SttLink.Turn.START -> {
+            Ears.Turn.START -> {
                 if (state == State.SPEAKING) {
                     if (echoGuard()) return
                     interrupt()
@@ -140,10 +155,10 @@ class VoiceSession(
                 state = State.USER_SPEAKING
                 listener?.onUserText(transcript, false)
             }
-            SttLink.Turn.UPDATE, SttLink.Turn.EAGER_END, SttLink.Turn.RESUMED -> {
+            Ears.Turn.UPDATE, Ears.Turn.EAGER_END, Ears.Turn.RESUMED -> {
                 if (state == State.USER_SPEAKING) listener?.onUserText(transcript, false)
             }
-            SttLink.Turn.END -> {
+            Ears.Turn.END -> {
                 if (transcript.isBlank()) {
                     if (state == State.USER_SPEAKING) state = State.LISTENING
                     return
