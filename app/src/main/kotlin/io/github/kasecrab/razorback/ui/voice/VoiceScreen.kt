@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.TypedValue
+import android.view.Choreographer
 import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -45,6 +46,19 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     private val end = IconButton(context)
     private val controls = LinearLayout(context)
     private var muted = false
+    private var followingSpeech = false
+    private val speechFrame = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!followingSpeech) return
+            val line = transcript.reply
+            if (line != null) {
+                val w = voice.spokenWord()
+                line.setProgress(w, voice.spokenFraction())
+                transcript.revealWord(w)
+            }
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
 
     init {
         keepScreenOn = true
@@ -128,9 +142,17 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     }
 
     override fun onExit() {
+        followSpeech(false)
         voice.stop()
         voice.listener = null
         VoiceService.stop(context)
+    }
+
+    /** While the assistant speaks, every frame asks the session where the voice is and lights the words up to there. */
+    private fun followSpeech(on: Boolean) {
+        if (followingSpeech == on) return
+        followingSpeech = on
+        if (on) Choreographer.getInstance().postFrameCallback(speechFrame) else Choreographer.getInstance().removeFrameCallback(speechFrame)
     }
 
     private fun toggleMute() {
@@ -171,6 +193,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
             VoiceSession.State.SPEAKING -> Orb.SPEAKING
             else -> Orb.IDLE
         }
+        followSpeech(state == VoiceSession.State.SPEAKING)
         if (state == VoiceSession.State.LISTENING) transcript.endReply()
     }
 

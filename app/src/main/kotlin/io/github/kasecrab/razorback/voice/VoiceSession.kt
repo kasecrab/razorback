@@ -55,9 +55,13 @@ class VoiceSession(
     private val focus = AudioFocus(context) { stop() }
     private val chunker = SentenceChunker { sentence -> speak(sentence) }
 
+    /** Where the voice is in the reply being read; the screen asks it every frame while speaking. */
+    val clock = SpeechClock()
+
     private var spokenChars = 0
     @Volatile private var replyIndex = -1
-    private var awaitingFlush = false
+    private var streamDone = false
+    private var replyStartBytes = 0L
     private var playbackStartedAt = 0L
     private var muted = false
     /** A finished turn that arrived while the previous reply was still being cancelled. */
@@ -91,8 +95,9 @@ class VoiceSession(
         playback.stop()
         focus.release()
         chunker.reset()
+        clock.reset()
         pendingTurn = null
-        awaitingFlush = false
+        streamDone = false
         state = State.IDLE
     }
 
@@ -156,7 +161,8 @@ class VoiceSession(
         tts.clear()
         playback.clear()
         chunker.reset()
-        awaitingFlush = false
+        clock.reset()
+        streamDone = false
         if (engine.isStreaming) engine.stop()
         replyIndex = -1
     }
@@ -172,8 +178,10 @@ class VoiceSession(
     private fun ask(text: String) {
         askedAt = SystemClock.elapsedRealtime()
         chunker.reset()
+        clock.reset()
         spokenChars = 0
-        awaitingFlush = false
+        streamDone = false
+        replyStartBytes = playback.enqueuedBytes.get()
         state = State.THINKING
         listener?.onReplyStarted()
         if (engine.isStreaming) {
@@ -208,16 +216,33 @@ class VoiceSession(
                 state = State.LISTENING
                 return
             }
-            awaitingFlush = true
-            tts.flush()
-            if (spokenChars == 0) {
-                // Nothing to say; go straight back to listening.
-                awaitingFlush = false
-                replyIndex = -1
-                state = State.LISTENING
-            }
+            streamDone = true
+            maybeEnd()
         }
     }
+
+    /**
+     * The reply is over once the model has stopped and the voice has returned every
+     * sentence's audio; only then can the speaker be told that nothing more is coming.
+     */
+    private fun maybeEnd() {
+        if (!streamDone || !clock.allFlushed) return
+        if (clock.sentenceCount == 0 || clock.totalBytes == 0L) {
+            // Nothing to say, or the voice had nothing to give; straight back to listening.
+            replyIndex = -1
+            state = State.LISTENING
+            return
+        }
+        playback.markEnd()
+    }
+
+    /** How far the voice is through the reply, as a word index into the sentences given to [Listener.onSentence]. */
+    fun spokenWord(): Int {
+        clock.seek(playback.playedBytes() - replyStartBytes)
+        return clock.word
+    }
+
+    fun spokenFraction(): Float = clock.fraction
 
     override fun onStreamingChanged(streaming: Boolean) {
         if (streaming) return
@@ -237,6 +262,7 @@ class VoiceSession(
         val text = SpeechText.strip(sentence)
         if (text.isBlank()) return
         Log.d { "voice: sentence of ${text.length} chars to aura ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
+        clock.sentence(text)
         listener?.onSentence(text)
         tts.speak(text)
         // Aura only returns audio for text that has been flushed; one flush per sentence
@@ -250,6 +276,7 @@ class VoiceSession(
     override fun onAudio(data: ByteArray) {
         if (replyIndex < 0) return
         val first = !playback.isPlaying
+        clock.audio(data.size)
         playback.enqueue(data)
         if (first) {
             context.mainExecutor.execute {
@@ -266,10 +293,9 @@ class VoiceSession(
     }
 
     override fun onFlushed() {
-        if (awaitingFlush) {
-            awaitingFlush = false
-            playback.markEnd()
-        }
+        if (replyIndex < 0) return
+        clock.flushed()
+        maybeEnd()
     }
 
     override fun onCleared() {}

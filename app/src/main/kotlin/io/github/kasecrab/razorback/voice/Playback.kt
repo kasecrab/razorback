@@ -7,6 +7,7 @@ import android.media.AudioTrack
 import android.os.Process
 import io.github.kasecrab.razorback.core.Log
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.sqrt
 
 /**
@@ -17,6 +18,9 @@ import kotlin.math.sqrt
 class Playback(private val onDrained: () -> Unit) {
 
     val level = AtomicInteger(0)
+
+    /** Bytes accepted since the track last started from silence; see [playedBytes]. */
+    val enqueuedBytes = AtomicLong(0)
 
     private val ring = ByteArray(RING_BYTES)
     private var head = 0
@@ -90,7 +94,22 @@ class Playback(private val onDrained: () -> Unit) {
             }
             size += len
             endMarked = false
+            enqueuedBytes.addAndGet(len.toLong())
             lock.notifyAll()
+        }
+    }
+
+    /**
+     * Bytes the speaker has actually presented on the same timeline as [enqueuedBytes]:
+     * both count from zero after [start] or [clear], so a reply that began at
+     * `enqueuedBytes == n` is `playedBytes() - n` bytes in.
+     */
+    fun playedBytes(): Long {
+        val t = track ?: return 0L
+        return try {
+            (t.playbackHeadPosition.toLong() and 0xFFFFFFFFL) * 2L
+        } catch (_: IllegalStateException) {
+            0L
         }
     }
 
@@ -113,11 +132,13 @@ class Playback(private val onDrained: () -> Unit) {
         }
         track?.let {
             try {
+                // flush() also puts the play head back to zero, matching the byte count below.
                 it.pause()
                 it.flush()
             } catch (_: IllegalStateException) {
             }
         }
+        enqueuedBytes.set(0)
         playing = false
         level.set(0)
     }
@@ -148,6 +169,7 @@ class Playback(private val onDrained: () -> Unit) {
             it.release()
         }
         track = null
+        enqueuedBytes.set(0)
         playing = false
         level.set(0)
     }
