@@ -23,7 +23,7 @@ class VoiceSession(
     private val engine: ChatEngine,
 ) : Ears.Listener, TtsLink.Listener, ChatEngine.Listener {
 
-    enum class State { IDLE, CONNECTING, LISTENING, USER_SPEAKING, THINKING, SPEAKING, RECONNECTING, ERROR }
+    enum class State { IDLE, CONNECTING, LISTENING, USER_SPEAKING, THINKING, SEARCHING, SPEAKING, RECONNECTING, ERROR }
 
     interface Listener {
         fun onStateChanged(state: State)
@@ -58,12 +58,22 @@ class VoiceSession(
     /** Where the voice is in the reply being read; the screen asks it every frame while speaking. */
     val clock = SpeechClock()
 
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
     private var spokenChars = 0
     @Volatile private var replyIndex = -1
     private var streamDone = false
     /** The model asked for a tool; the answer comes in a later reply of the same turn. */
     private var toolRound = false
+    /** A cue has been said and nothing else is queued; when it has played, the wait goes on quietly. */
+    private var cuePending = false
     private var cues = 0
+    private var thinkCues = 0
+    private val slowThinking = Runnable {
+        if (replyIndex >= 0 && state == State.THINKING && spokenChars == 0 && clock.sentenceCount == 0) {
+            cue(THINK_CUES[thinkCues++ % THINK_CUES.size])
+        }
+    }
     private var replyStartBytes = 0L
     private var playbackStartedAt = 0L
     private var muted = false
@@ -121,6 +131,7 @@ class VoiceSession(
         pendingTurn = null
         streamDone = false
         toolRound = false
+        main.removeCallbacks(slowThinking)
         state = State.IDLE
     }
 
@@ -193,14 +204,14 @@ class VoiceSession(
     }
 
     /** A reply is being made or read; speech now is either a cut-in or the speaker's echo. */
-    private val busy: Boolean get() = state == State.SPEAKING || state == State.THINKING
+    private val busy: Boolean get() = state == State.SPEAKING || state == State.THINKING || state == State.SEARCHING
 
     /** Two or more words that are not just the reply coming back through the microphone. */
     private fun surelyThePerson(transcript: String): Boolean = wordCount(transcript) >= 2 && !isEcho(transcript)
 
     /** True when most of what was heard is what the voice has just been saying. */
     private fun isEcho(transcript: String): Boolean {
-        if (state != State.SPEAKING) return false
+        if (state != State.SPEAKING && !playback.isPlaying) return false
         var total = 0
         var known = 0
         for (w in words(transcript)) {
@@ -233,6 +244,7 @@ class VoiceSession(
         clock.reset()
         streamDone = false
         toolRound = false
+        main.removeCallbacks(slowThinking)
         if (engine.isStreaming) engine.stop()
         replyIndex = -1
     }
@@ -253,8 +265,11 @@ class VoiceSession(
         streamDone = false
         toolRound = false
         tentative = false
+        cuePending = false
         spokenWords.clear()
         replyStartBytes = playback.enqueuedBytes.get()
+        main.removeCallbacks(slowThinking)
+        main.postDelayed(slowThinking, SLOW_THINKING_MS)
         state = State.THINKING
         listener?.onReplyStarted()
         if (engine.isStreaming) {
@@ -277,7 +292,11 @@ class VoiceSession(
         if (m.role != Role.ASSISTANT) return
         val content = m.content
         if (content.length > spokenChars) {
-            if (spokenChars == 0) Log.d { "voice: first token ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
+            if (spokenChars == 0) {
+                Log.d { "voice: first token ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
+                main.removeCallbacks(slowThinking)
+                cuePending = false
+            }
             chunker.push(content.substring(spokenChars))
             spokenChars = content.length
         }
@@ -293,7 +312,9 @@ class VoiceSession(
                 // The engine is about to run the tool and ask again. Say so, so the wait
                 // is not dead air, and keep the turn open for the reply that follows.
                 toolRound = true
-                if (m.content.isBlank()) speak(CUES[cues++ % CUES.size])
+                main.removeCallbacks(slowThinking)
+                if (state == State.THINKING) state = State.SEARCHING
+                cue(if (m.content.isBlank()) CUES[cues++ % CUES.size] else m.content)
                 return
             }
             streamDone = true
@@ -338,6 +359,12 @@ class VoiceSession(
         }
     }
 
+    /** Something short to say about the wait; once it has played the wait goes on in silence. */
+    private fun cue(text: String) {
+        cuePending = true
+        speak(text)
+    }
+
     private fun speak(sentence: String) {
         val text = SpeechText.strip(sentence)
         if (text.isBlank()) return
@@ -365,7 +392,8 @@ class VoiceSession(
                     playbackStartedAt = SystemClock.elapsedRealtime()
                     Log.d { "voice: first tts audio ${playbackStartedAt - askedAt} ms after the turn ended" }
                 }
-                if (state == State.THINKING) {
+                // A cue while searching keeps the searching status; the answer itself is speaking.
+                if (state == State.THINKING || (state == State.SEARCHING && !toolRound)) {
                     state = State.SPEAKING
                     if (prefs[Keys.VOICE_MUTE_WHILE_SPEAKING]) mic.muted.set(true)
                 }
@@ -379,8 +407,8 @@ class VoiceSession(
         clock.flushed()
         context.mainExecutor.execute {
             if (replyIndex < 0) return@execute
-            if (toolRound) {
-                // Nothing more will be said until the tool has answered; let the cue play out.
+            if (toolRound || cuePending) {
+                // Nothing more will be said until the model has more; let the cue play out.
                 if (clock.allFlushed) playback.markEnd()
                 return@execute
             }
@@ -395,7 +423,8 @@ class VoiceSession(
             if (state != State.SPEAKING) return@execute
             if (toolRound || (engine.isStreaming && !streamDone)) {
                 // The cue has been said; the answer is still on its way.
-                state = State.THINKING
+                cuePending = false
+                state = if (toolRound) State.SEARCHING else State.THINKING
                 return@execute
             }
             replyIndex = -1
@@ -406,7 +435,9 @@ class VoiceSession(
 
     private companion object {
         /** Said while a tool runs, so the silence is not mistaken for a stall. */
-        val CUES = listOf("Let me check.", "One moment.", "Let me look that up.")
+        val CUES = listOf("Let me grab some more info on that.", "Let me look that up.", "One second, checking online.")
+        val THINK_CUES = listOf("Let me think about that for a second.", "Hmm, give me a moment.", "Okay, let me think.")
+        const val SLOW_THINKING_MS = 2500L
         val NON_WORD = Regex("[^\\p{L}\\p{N}']+")
     }
 
@@ -423,6 +454,9 @@ class VoiceSession(
         replyIndex = index
         spokenChars = 0
         toolRound = false
+        cuePending = false
+        main.removeCallbacks(slowThinking)
+        main.postDelayed(slowThinking, SLOW_THINKING_MS)
     }
     override fun onMessageRemoved(index: Int) {}
 }

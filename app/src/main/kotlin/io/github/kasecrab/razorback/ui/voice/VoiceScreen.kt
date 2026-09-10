@@ -182,6 +182,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
             VoiceSession.State.LISTENING -> context.getString(R.string.voice_listening)
             VoiceSession.State.USER_SPEAKING -> context.getString(R.string.voice_hearing)
             VoiceSession.State.THINKING -> context.getString(R.string.voice_thinking)
+            VoiceSession.State.SEARCHING -> context.getString(R.string.voice_searching)
             VoiceSession.State.SPEAKING -> context.getString(R.string.voice_speaking)
             VoiceSession.State.RECONNECTING -> context.getString(R.string.voice_reconnecting)
             VoiceSession.State.ERROR -> context.getString(R.string.went_wrong)
@@ -189,11 +190,11 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         orb.state = when (state) {
             VoiceSession.State.LISTENING -> Orb.LISTENING
             VoiceSession.State.USER_SPEAKING -> Orb.USER_SPEAKING
-            VoiceSession.State.THINKING -> Orb.THINKING
+            VoiceSession.State.THINKING, VoiceSession.State.SEARCHING -> Orb.THINKING
             VoiceSession.State.SPEAKING -> Orb.SPEAKING
             else -> Orb.IDLE
         }
-        followSpeech(state == VoiceSession.State.SPEAKING)
+        followSpeech(state == VoiceSession.State.SPEAKING || state == VoiceSession.State.SEARCHING || state == VoiceSession.State.THINKING)
         if (state == VoiceSession.State.LISTENING) transcript.endReply()
     }
 

@@ -145,6 +145,7 @@
     <string name="voice_hearing">Hearing you…</string>
     <string name="voice_connecting">Connecting…</string>
     <string name="voice_thinking">Thinking</string>
+    <string name="voice_searching">Searching the web…</string>
     <string name="voice_speaking">Speaking</string>
     <string name="voice_reconnecting">Reconnecting…</string>
     <string name="voice_end">End</string>
