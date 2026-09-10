@@ -32,6 +32,15 @@ import io.github.kasecrab.razorback.model.Role
 import io.github.kasecrab.razorback.model.Conversation
 import io.github.kasecrab.razorback.ui.widget.InputSheet
 import kotlinx.coroutines.Job
+import android.app.Activity
+import android.net.Uri
+import android.widget.Toast
+import io.github.kasecrab.razorback.media.CameraProvider
+import io.github.kasecrab.razorback.media.ImagePrep
+import io.github.kasecrab.razorback.media.Pick
+import io.github.kasecrab.razorback.media.TextExtract
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
@@ -100,7 +109,8 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         adapter.onMenu = { showMenu(it) }
         column.addView(content, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
 
-        composer.onSend = { engine.send(it) }
+        composer.onSend = { text, pending -> send(text, pending) }
+        composer.onAttach = { showAttachSheet() }
         composer.onStop = { engine.stop() }
         composer.modelChip.setOnClickListener { ModelPickerSheet(context).show() }
         composer.modelChip.setOnLongClickListener {
@@ -210,6 +220,74 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     override fun onThemeChanged(theme: Theme) {
         super.onThemeChanged(theme)
         column.setBackgroundColor(theme.bg)
+    }
+
+    private fun send(text: String, pending: List<AttachStrip.Pending>) {
+        val images = ArrayList<String>()
+        val blocks = StringBuilder()
+        for (p in pending) {
+            p.attachment?.let { images.add(it.path) }
+            p.text?.let { blocks.append(TextExtract.wrap(it.name, it.text)).append("\n\n") }
+        }
+        val content = if (blocks.isEmpty()) text else blocks.toString() + text
+        if (content.isBlank() && images.isEmpty()) return
+        engine.send(content, images)
+    }
+
+    private fun showAttachSheet() {
+        val sheet = ActionSheet(context)
+        sheet.add(R.drawable.ic_camera, context.getString(R.string.attach_camera)) { takePhoto() }
+        sheet.add(R.drawable.ic_image, context.getString(R.string.attach_photos)) { pickPhotos() }
+        sheet.add(R.drawable.ic_file, context.getString(R.string.attach_files)) { pickFile() }
+        sheet.show()
+    }
+
+    private fun takePhoto() {
+        val capture = Pick.camera(context)
+        context.ui().results.start(capture.intent) { code, _ ->
+            if (code != Activity.RESULT_OK) return@start
+            val file = CameraProvider.fileFor(context, capture.fileName)
+            importAll(listOf { ImagePrep.importFile(context, file, "photo").also { file.delete() } })
+        }
+    }
+
+    private fun pickPhotos() {
+        context.ui().results.start(Pick.photos()) { code, data ->
+            if (code != Activity.RESULT_OK || data == null) return@start
+            val uris = ArrayList<Uri>()
+            data.clipData?.let { clip -> for (i in 0 until clip.itemCount) uris.add(clip.getItemAt(i).uri) }
+            data.data?.let { if (uris.isEmpty()) uris.add(it) }
+            importAll(uris.map { uri -> { ImagePrep.importUri(context, uri, TextExtract.displayName(context, uri)) } })
+        }
+    }
+
+    private fun pickFile() {
+        context.ui().results.start(Pick.files()) { code, data ->
+            val uri = data?.data
+            if (code != Activity.RESULT_OK || uri == null) return@start
+            val mime = context.contentResolver.getType(uri) ?: ""
+            if (mime.startsWith("image/")) {
+                importAll(listOf { ImagePrep.importUri(context, uri, TextExtract.displayName(context, uri)) })
+            } else {
+                context.uiScope.launch {
+                    val r = runCatching { withContext(Dispatchers.IO) { TextExtract.load(context, uri) } }
+                    r.onSuccess { composer.strip.add(AttachStrip.Pending(null, it)) }
+                    r.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show() }
+                    composer.updatePrimary()
+                }
+            }
+        }
+    }
+
+    private fun importAll(jobs: List<() -> io.github.kasecrab.razorback.model.Attachment>) {
+        context.uiScope.launch {
+            for (job in jobs) {
+                val r = runCatching { withContext(Dispatchers.IO) { job() } }
+                r.onSuccess { composer.strip.add(AttachStrip.Pending(it, null)) }
+                r.onFailure { Toast.makeText(context, context.getString(R.string.attach_failed, it.message ?: "image"), Toast.LENGTH_SHORT).show() }
+            }
+            composer.updatePrimary()
+        }
     }
 
     private fun showMenu(index: Int) {

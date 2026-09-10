@@ -10,6 +10,8 @@ import android.view.WindowInsetsAnimation
 import android.view.WindowInsetsController
 import android.widget.FrameLayout
 import io.github.kasecrab.razorback.ui.chat.ChatScreen
+import android.content.Intent
+import io.github.kasecrab.razorback.ui.core.ActivityResults
 import io.github.kasecrab.razorback.ui.core.BackDispatcher
 import io.github.kasecrab.razorback.ui.core.ScreenStack
 import io.github.kasecrab.razorback.ui.core.Theme
@@ -43,6 +45,7 @@ class MainActivity : Activity() {
         stack = ScreenStack(root, back)
         ctx.nav = stack
         ctx.root = root
+        ctx.results = ActivityResults { intent, code -> startActivityForResult(intent, code) }
         uiContext = ctx
         back.add(stack, priority = 0)
         setContentView(root)
@@ -108,6 +111,11 @@ class MainActivity : Activity() {
         uiContext.insetTop = bars.top
         uiContext.insetBottom = bars.bottom
         stack.onInsetsChanged(bars.top, maxOf(bars.bottom, ime.bottom), bars.left, bars.right)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!uiContext.results.deliver(requestCode, resultCode, data)) super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onDestroy() {

@@ -1,6 +1,9 @@
 package io.github.kasecrab.razorback.chat
 
+import android.content.Context
 import android.os.Handler
+import io.github.kasecrab.razorback.media.ImagePrep
+import io.github.kasecrab.razorback.provider.ModelCatalog
 import android.os.Looper
 import io.github.kasecrab.razorback.core.Ids
 import io.github.kasecrab.razorback.core.Keys
@@ -26,7 +29,13 @@ import kotlinx.coroutines.launch
  * main thread; streamed text is batched and applied at most once per frame, and written
  * to disk about once a second unless the chat is temporary.
  */
-class ChatEngine(private val prefs: Prefs, private val provider: Provider, private val store: ChatStore) {
+class ChatEngine(
+    private val context: Context,
+    private val prefs: Prefs,
+    private val provider: Provider,
+    private val store: ChatStore,
+    private val catalog: ModelCatalog,
+) {
 
     interface Listener {
         fun onReset()
@@ -204,15 +213,18 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider, priva
         lastPersist = System.currentTimeMillis()
         persistedLength = 0
         for (l in listeners) l.onStreamingChanged(true)
-        val request = ChatRequest(
-            model = model,
-            messages = messages.subList(0, index).filter { it.status != MessageStatus.ERROR },
-            systemPrompt = prefs[Keys.SYSTEM_PROMPT],
-            maxTokens = prefs[Keys.MAX_TOKENS],
-            thinking = thinking,
-        )
+        val info = catalog.find(model)
+        val history = messages.subList(0, index).filter { it.status != MessageStatus.ERROR }
         val started = System.currentTimeMillis()
         job = io.launch {
+            val request = ChatRequest(
+                model = model,
+                messages = hydrate(history),
+                systemPrompt = prefs[Keys.SYSTEM_PROMPT],
+                maxTokens = prefs[Keys.MAX_TOKENS],
+                thinking = thinking,
+                imageOutput = info?.producesImages == true,
+            )
             val runner = TurnRunner(provider, h) { text, reasoning ->
                 synchronized(lock) {
                     if (pendingFirstToken == 0L) pendingFirstToken = System.currentTimeMillis()
@@ -222,8 +234,46 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider, priva
                 scheduleFlush()
             }
             val outcome = runner.run(request)
-            main.post { finish(conv, reply, outcome, started) }
+            val saved = outcome.acc.images.mapNotNull { url ->
+                try {
+                    ImagePrep.importDataUrl(context, url).path
+                } catch (e: Exception) {
+                    Log.w("could not keep generated image", e)
+                    null
+                }
+            }
+            main.post { finish(conv, reply, outcome, started, saved) }
         }
+    }
+
+    /**
+     * Pictures are kept as files; the request wants data URLs. Only the newest few are
+     * sent so a long conversation does not carry megabytes of base64 every turn.
+     */
+    private fun hydrate(history: List<Message>): List<Message> {
+        var budget = MAX_IMAGES_SENT
+        val out = ArrayList<Message>(history.size)
+        for (i in history.indices.reversed()) {
+            val m = history[i]
+            if (m.images.isEmpty()) {
+                out.add(m)
+                continue
+            }
+            val urls = ArrayList<String>(m.images.size)
+            for (img in m.images) {
+                if (budget <= 0) break
+                val url = if (img.startsWith("data:")) img else try {
+                    ImagePrep.dataUrl(img)
+                } catch (e: Exception) {
+                    continue
+                }
+                urls.add(url)
+                budget--
+            }
+            out.add(Message(m.id, m.role, m.content, m.reasoning, m.reasoningDetails, m.toolCalls, m.toolCallId, urls, m.model, m.status))
+        }
+        out.reverse()
+        return out
     }
 
     private fun scheduleFlush() {
@@ -270,7 +320,7 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider, priva
         }
     }
 
-    private fun finish(conv: Conversation, reply: Message, outcome: TurnRunner.Outcome, started: Long) {
+    private fun finish(conv: Conversation, reply: Message, outcome: TurnRunner.Outcome, started: Long, images: List<String>) {
         main.removeCallbacks(flush)
         flush.run()
         synchronized(lock) { pendingFirstToken = 0L }
@@ -278,7 +328,7 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider, priva
         reply.content = acc.text.toString()
         reply.reasoning = acc.reasoning.toString().ifEmpty { null }
         reply.reasoningDetails = acc.reasoningDetailsJson()
-        reply.images = acc.images.toList()
+        reply.images = images
         reply.toolCalls = if (outcome.cancelled || outcome.error != null) emptyList() else acc.toolCalls()
         reply.usage = acc.usage
         reply.finishedAt = System.currentTimeMillis()
@@ -318,5 +368,6 @@ class ChatEngine(private val prefs: Prefs, private val provider: Provider, priva
         const val FLUSH_MS = 33L
         const val PERSIST_MS = 1000L
         const val PERSIST_CHARS = 2048
+        const val MAX_IMAGES_SENT = 4
     }
 }

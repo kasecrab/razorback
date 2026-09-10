@@ -24,8 +24,8 @@ class App : Application() {
     val db: Db by lazy { Db(this) }
     val store: ChatStore by lazy { ChatStore(db) }
     val stats: Stats by lazy { Stats(db) }
-    val engine: ChatEngine by lazy { ChatEngine(prefs, openRouter, store) }
     val catalog: ModelCatalog by lazy { ModelCatalog(ModelCache(filesDir)) { secrets.get(Secrets.OPENROUTER) } }
+    val engine: ChatEngine by lazy { ChatEngine(this, prefs, openRouter, store, catalog) }
     val favorites: Favorites by lazy { Favorites(prefs) }
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

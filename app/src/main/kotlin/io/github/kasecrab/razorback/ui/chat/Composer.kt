@@ -32,8 +32,10 @@ class Composer(context: Context) : LinearLayout(context), Themed {
     val temporaryChip = Chip(context)
     val dictate = IconButton(context)
     val primary = IconButton(context)
+    val strip = AttachStrip(context)
 
-    var onSend: ((String) -> Unit)? = null
+    var onSend: ((String, List<AttachStrip.Pending>) -> Unit)? = null
+    var onAttach: (() -> Unit)? = null
     var onStop: (() -> Unit)? = null
     var onVoiceMode: (() -> Unit)? = null
 
@@ -52,6 +54,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         clipToOutline = true
         setPadding(dp(6), dp(8), dp(6), dp(6))
 
+        addView(strip, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         input.background = null
         input.setHint(R.string.composer_hint)
         input.typeface = Fonts.regular
@@ -67,6 +70,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         row.gravity = Gravity.CENTER_VERTICAL
         attach.iconRes = R.drawable.ic_plus
         attach.contentDescription = context.getString(R.string.cd_attach)
+        attach.setOnClickListener { onAttach?.invoke() }
         row.addView(attach, LayoutParams(dp(40), dp(40)))
 
         modelChip.style = Chip.Style.PLAIN
@@ -106,11 +110,13 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         primary.setOnClickListener {
             when {
                 streaming -> onStop?.invoke()
-                input.text.isBlank() -> onVoiceMode?.invoke()
+                input.text.isBlank() && strip.items.isEmpty() -> onVoiceMode?.invoke()
                 else -> {
                     val text = input.text.toString().trim()
+                    val pending = ArrayList(strip.items)
                     input.text.clear()
-                    onSend?.invoke(text)
+                    strip.clear()
+                    onSend?.invoke(text, pending)
                 }
             }
         }
@@ -118,8 +124,8 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         onThemeChanged(context.appTheme)
     }
 
-    private fun updatePrimary() {
-        val hasText = input.text.isNotBlank()
+    fun updatePrimary() {
+        val hasText = input.text.isNotBlank() || strip.items.isNotEmpty()
         primary.iconRes = when {
             streaming -> R.drawable.ic_stop
             hasText -> R.drawable.ic_arrow_up

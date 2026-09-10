@@ -24,29 +24,44 @@ import java.text.DateFormat
 import java.util.Date
 
 /** The person's turn: a bubble hugging the end edge; long-press for actions. */
-class UserMessageView(context: Context) : FrameLayout(context), Themed {
+class UserMessageView(context: Context) : LinearLayout(context), Themed {
 
+    private val images = ImageGridView(context)
+    private val files = LinearLayout(context)
     private val bubble = TextView(context)
     var onMenu: (() -> Unit)? = null
 
     init {
+        orientation = VERTICAL
+        gravity = Gravity.END
+        setPadding(dp(56), dp(6), dp(16), dp(6))
+        addView(images, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
+        files.orientation = VERTICAL
+        files.gravity = Gravity.END
+        addView(files, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
         bubble.typeface = Fonts.regular
         bubble.setPadding(dp(14), dp(10), dp(14), dp(10))
         bubble.setOnLongClickListener {
             onMenu?.invoke()
             true
         }
-        addView(
-            bubble,
-            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.END).apply {
-                setMargins(dp(56), dp(6), dp(16), dp(6))
-            },
-        )
+        addView(bubble, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
         onThemeChanged(context.appTheme)
     }
 
     fun bind(m: Message) {
-        bubble.text = m.content
+        images.set(m.images.filter { !it.startsWith("data:") })
+        files.removeAllViews()
+        val parts = FileBlocks.split(m.content)
+        for (name in parts.files) {
+            val chip = io.github.kasecrab.razorback.ui.widget.Chip(context)
+            chip.style = io.github.kasecrab.razorback.ui.widget.Chip.Style.SOFT
+            chip.leadingIcon = R.drawable.ic_file
+            chip.text = name
+            files.addView(chip, LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)).apply { bottomMargin = dp(6) })
+        }
+        bubble.text = parts.text
+        bubble.visibility = if (parts.text.isEmpty()) View.GONE else View.VISIBLE
     }
 
     override fun onThemeChanged(theme: Theme) {
@@ -67,6 +82,7 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
     private val more = IconButton(context)
     private val thinking = ThinkingView(context)
     private val body = MessageView(context)
+    private val pictures = ImageGridView(context)
     private val note = TextView(context)
     private val usage = TextView(context)
     private var message: Message? = null
@@ -97,6 +113,10 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
             marginEnd = dp(8)
         })
         addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
+        addView(pictures, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8)
+            marginEnd = dp(8)
+        })
         note.typeface = Fonts.regular
         note.visibility = View.GONE
         addView(note, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
@@ -109,6 +129,7 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
         who.text = (m.model?.substringAfter('/')?.substringBefore(':') ?: "") + "  ·  " + TIME.format(Date(m.createdAt))
         thinking.bind(m)
         body.render(m.content)
+        pictures.set(m.images.filter { !it.startsWith("data:") })
         val noteText = when (m.status) {
             MessageStatus.ERROR -> m.error ?: context.getString(R.string.went_wrong)
             MessageStatus.CUT -> m.error ?: context.getString(R.string.cut_short)
@@ -149,10 +170,27 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
         more.onThemeChanged(theme)
         thinking.onThemeChanged(theme)
         body.onThemeChanged(theme)
+        pictures.onThemeChanged(theme)
         note.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
     }
 
     private companion object {
         val TIME: DateFormat = DateFormat.getTimeInstance(DateFormat.SHORT)
+    }
+}
+
+/** `<file name="x">…</file>` blocks inside a user message, shown as chips instead of raw text. */
+object FileBlocks {
+    class Parts(val text: String, val files: List<String>)
+
+    private val BLOCK = Regex("<file name=\"([^\"]*)\">\n?[\\s\\S]*?\n?</file>\n?")
+
+    fun split(content: String): Parts {
+        val names = ArrayList<String>(1)
+        val text = BLOCK.replace(content) {
+            names.add(it.groupValues[1])
+            ""
+        }.trim()
+        return Parts(text, names)
     }
 }

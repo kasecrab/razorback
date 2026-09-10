@@ -45,6 +45,7 @@ class UiContext(
 ) : ContextWrapper(base) {
     lateinit var nav: ScreenStack
     lateinit var root: FrameLayout
+    lateinit var results: ActivityResults
     var insetTop = 0
     var insetBottom = 0
 }

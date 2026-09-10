@@ -81,4 +81,11 @@
     <string name="stats_models">Top models, last 30 days</string>
     <string name="stats_empty">Nothing yet. Send a message and come back.</string>
     <string name="usage_no_key">Add an OpenRouter key first</string>
+    <string name="attach_camera">Take a photo</string>
+    <string name="attach_photos">Choose photos</string>
+    <string name="attach_files">Choose a file</string>
+    <string name="cd_remove">Remove</string>
+    <string name="cd_save_image">Save image</string>
+    <string name="image_saved">Saved to Pictures</string>
+    <string name="attach_failed">Could not add %s</string>
 </resources>
