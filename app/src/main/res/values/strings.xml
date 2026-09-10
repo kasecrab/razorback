@@ -166,4 +166,5 @@
     <string name="about_subtitle">Version and source</string>
     <string name="source_code">Source code</string>
     <string name="about_note">Razorback talks to OpenRouter for models and to Deepgram for voice. Keys stay on this phone, encrypted, and are only ever sent to their own service.</string>
+    <string name="voice_thinking_row">Thinking while speaking</string>
 </resources>

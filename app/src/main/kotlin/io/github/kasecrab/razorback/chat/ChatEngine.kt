@@ -128,7 +128,7 @@ class ChatEngine(
         }
     }
 
-    fun send(text: String, images: List<String> = emptyList()) {
+    fun send(text: String, images: List<String> = emptyList(), thinking: ThinkingLevel = this.thinking) {
         if (isStreaming) return
         val user = Message(Ids.next(), Role.USER, content = text, images = images)
         var conv = conversation
@@ -143,7 +143,7 @@ class ChatEngine(
         val index = messages.size - 1
         if (persist) io.launch { store.insertMessage(conv.id, index, user) }
         for (l in listeners) l.onMessageAdded(index)
-        startReply()
+        startReply(thinking = thinking)
     }
 
     /** Drop the last reply and ask again. */
@@ -203,7 +203,7 @@ class ChatEngine(
         return if (line.length > 60) line.take(57).trimEnd() + "…" else line
     }
 
-    private fun startReply(round: Int = 0) {
+    private fun startReply(round: Int = 0, thinking: ThinkingLevel = this.thinking) {
         val conv = conversation ?: return
         val reply = Message(Ids.next(), Role.ASSISTANT, model = model, status = MessageStatus.STREAMING)
         messages.add(reply)
@@ -364,7 +364,7 @@ class ChatEngine(
                         for (l in listeners) l.onMessageAdded(ti)
                     }
                     handle = null
-                    startReply(round + 1)
+                    startReply(round + 1, thinking)
                 }
             }
             return

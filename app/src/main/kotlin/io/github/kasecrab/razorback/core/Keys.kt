@@ -17,6 +17,8 @@ object Keys {
     val VOICE_SPEED = Key("voice.speed", 1.0f)
     val VOICE_MUTE_WHILE_SPEAKING = Key("voice.mute_while_speaking", false)
     val VOICE_ORB = Key("voice.orb", "sol")
+    /** Spoken replies want to start fast; deep reasoning is opt-in here. */
+    val VOICE_THINKING = EnumKey("voice.thinking", ThinkingLevel.OFF, ThinkingLevel.entries.toTypedArray())
 
     val THEME_MODE = EnumKey("theme.mode", ThemeMode.DARK, ThemeMode.entries.toTypedArray())
     val THEME_FOLLOW_SYSTEM = Key("theme.follow_system", true)
