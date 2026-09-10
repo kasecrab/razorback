@@ -79,6 +79,12 @@ class ProvidersScreen(context: Context) : Screen(context) {
         field(Secrets.DEEPGRAM, R.string.key_hint_generic)
 
         header(R.string.web_search)
+        val toggle = SwitchRow(context)
+        val prefs = App.instance.prefs
+        toggle.set(context.getString(R.string.web_search_toggle), context.getString(R.string.web_search_toggle_hint), prefs[io.github.kasecrab.razorback.core.Keys.WEB_SEARCH]) {
+            prefs[io.github.kasecrab.razorback.core.Keys.WEB_SEARCH] = it
+        }
+        list.addView(toggle, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         caption(R.string.brave)
         field(Secrets.BRAVE, R.string.key_hint_generic)
         caption(R.string.exa)

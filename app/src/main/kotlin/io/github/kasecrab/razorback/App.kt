@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import io.github.kasecrab.razorback.data.ModelCache
 import io.github.kasecrab.razorback.provider.ModelCatalog
 import io.github.kasecrab.razorback.provider.openrouter.OpenRouterProvider
+import io.github.kasecrab.razorback.tools.ToolRegistry
 
 class App : Application() {
 
@@ -25,7 +26,8 @@ class App : Application() {
     val store: ChatStore by lazy { ChatStore(db) }
     val stats: Stats by lazy { Stats(db) }
     val catalog: ModelCatalog by lazy { ModelCatalog(ModelCache(filesDir)) { secrets.get(Secrets.OPENROUTER) } }
-    val engine: ChatEngine by lazy { ChatEngine(this, prefs, openRouter, store, catalog) }
+    val tools: ToolRegistry by lazy { ToolRegistry(prefs, secrets) }
+    val engine: ChatEngine by lazy { ChatEngine(this, prefs, openRouter, store, catalog, tools) }
     val favorites: Favorites by lazy { Favorites(prefs) }
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

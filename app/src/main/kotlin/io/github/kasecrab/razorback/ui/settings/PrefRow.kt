@@ -70,3 +70,46 @@ class NavRow(context: Context) : LinearLayout(context), Themed {
         chevron.setImageDrawable(context.icon(R.drawable.ic_chevron_right, theme.textTertiary))
     }
 }
+
+/** Title, hint and a switch. */
+class SwitchRow(context: Context) : LinearLayout(context), Themed {
+
+    private val title = TextView(context)
+    private val subtitle = TextView(context)
+    val switch = io.github.kasecrab.razorback.ui.widget.SwitchView(context)
+
+    init {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isClickable = true
+        minimumHeight = dp(60)
+        setPadding(dp(16), dp(10), dp(16), dp(10))
+        val texts = LinearLayout(context)
+        texts.orientation = VERTICAL
+        title.typeface = Fonts.regular
+        subtitle.typeface = Fonts.regular
+        texts.addView(title, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        texts.addView(subtitle, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(texts, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(16) })
+        addView(switch, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+        setOnClickListener { switch.performClick() }
+        onThemeChanged(context.appTheme)
+    }
+
+    fun set(titleText: CharSequence, subtitleText: CharSequence?, checked: Boolean, onChange: (Boolean) -> Unit) {
+        title.text = titleText
+        subtitle.text = subtitleText
+        subtitle.visibility = if (subtitleText.isNullOrEmpty()) View.GONE else View.VISIBLE
+        switch.checked = checked
+        switch.onChange = onChange
+    }
+
+    override fun onThemeChanged(theme: Theme) {
+        background = Shapes.ripple(theme.accentSoft, null, 0f)
+        title.setTextColor(theme.textPrimary)
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
+        subtitle.setTextColor(theme.textSecondary)
+        subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
+        switch.onThemeChanged(theme)
+    }
+}

@@ -88,4 +88,9 @@
     <string name="cd_save_image">Save image</string>
     <string name="image_saved">Saved to Pictures</string>
     <string name="attach_failed">Could not add %s</string>
+    <string name="web_search_toggle">Let models search the web</string>
+    <string name="web_search_toggle_hint">Uses your Brave or Exa key when the model asks for a search</string>
+    <string name="searching">Searching the web</string>
+    <string name="search_results">%d results</string>
+    <string name="search_failed">Search failed</string>
 </resources>

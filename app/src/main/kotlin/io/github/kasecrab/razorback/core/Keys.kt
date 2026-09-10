@@ -10,6 +10,7 @@ object Keys {
     val MAX_TOKENS = Key("model.max_tokens", 8192)
     val SYSTEM_PROMPT = Key("prompt.system", "")
     val FAVORITES = Key("model.favorites", "")
+    val WEB_SEARCH = Key("tools.web_search", true)
 
     val THEME_MODE = EnumKey("theme.mode", ThemeMode.DARK, ThemeMode.entries.toTypedArray())
     val THEME_FOLLOW_SYSTEM = Key("theme.follow_system", true)

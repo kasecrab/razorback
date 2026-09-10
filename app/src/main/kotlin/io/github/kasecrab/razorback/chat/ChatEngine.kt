@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import io.github.kasecrab.razorback.media.ImagePrep
 import io.github.kasecrab.razorback.provider.ModelCatalog
+import io.github.kasecrab.razorback.tools.ToolRegistry
 import android.os.Looper
 import io.github.kasecrab.razorback.core.Ids
 import io.github.kasecrab.razorback.core.Keys
@@ -35,6 +36,7 @@ class ChatEngine(
     private val provider: Provider,
     private val store: ChatStore,
     private val catalog: ModelCatalog,
+    private val tools: ToolRegistry,
 ) {
 
     interface Listener {
@@ -201,7 +203,7 @@ class ChatEngine(
         return if (line.length > 60) line.take(57).trimEnd() + "…" else line
     }
 
-    private fun startReply() {
+    private fun startReply(round: Int = 0) {
         val conv = conversation ?: return
         val reply = Message(Ids.next(), Role.ASSISTANT, model = model, status = MessageStatus.STREAMING)
         messages.add(reply)
@@ -214,7 +216,8 @@ class ChatEngine(
         persistedLength = 0
         for (l in listeners) l.onStreamingChanged(true)
         val info = catalog.find(model)
-        val history = messages.subList(0, index).filter { it.status != MessageStatus.ERROR }
+        val history = messages.subList(0, index).filter { it.status != MessageStatus.ERROR || it.role == Role.TOOL }
+        val offered = if (round < MAX_TOOL_ROUNDS && (info == null || info.supportsTools)) tools.enabled() else emptyList()
         val started = System.currentTimeMillis()
         job = io.launch {
             val request = ChatRequest(
@@ -223,6 +226,7 @@ class ChatEngine(
                 systemPrompt = prefs[Keys.SYSTEM_PROMPT],
                 maxTokens = prefs[Keys.MAX_TOKENS],
                 thinking = thinking,
+                tools = offered.map { it.spec },
                 imageOutput = info?.producesImages == true,
             )
             val runner = TurnRunner(provider, h) { text, reasoning ->
@@ -242,7 +246,7 @@ class ChatEngine(
                     null
                 }
             }
-            main.post { finish(conv, reply, outcome, started, saved) }
+            main.post { finish(conv, reply, outcome, started, saved, round) }
         }
     }
 
@@ -320,7 +324,7 @@ class ChatEngine(
         }
     }
 
-    private fun finish(conv: Conversation, reply: Message, outcome: TurnRunner.Outcome, started: Long, images: List<String>) {
+    private fun finish(conv: Conversation, reply: Message, outcome: TurnRunner.Outcome, started: Long, images: List<String>, round: Int) {
         main.removeCallbacks(flush)
         flush.run()
         synchronized(lock) { pendingFirstToken = 0L }
@@ -341,10 +345,32 @@ class ChatEngine(
             else -> MessageStatus.COMPLETE
         }
         reply.error = outcome.error
-        handle = null
-        job = null
         val index = messages.indexOf(reply)
         if (index >= 0) for (l in listeners) l.onMessageChanged(index, streaming = false)
+        val calls = reply.toolCalls
+        val truncatedCall = acc.finishReason == "length" && acc.hasToolCalls
+        if (reply.status == MessageStatus.COMPLETE && calls.isNotEmpty() && !truncatedCall) {
+            // Tool round: run every call, append results, ask again. The stream handle stays
+            // non-null so the UI keeps showing stop until the final answer lands.
+            if (persist) io.launch { store.updateMessage(reply) }
+            job = io.launch {
+                val results = calls.map { c -> tools.run(c.name, c.arguments) }
+                main.post {
+                    for ((c, r) in calls.zip(results)) {
+                        val tm = Message(Ids.next(), Role.TOOL, content = r.output, toolCallId = c.id, status = if (r.isError) MessageStatus.ERROR else MessageStatus.COMPLETE)
+                        messages.add(tm)
+                        val ti = messages.size - 1
+                        if (persist) io.launch { store.insertMessage(conv.id, ti, tm) }
+                        for (l in listeners) l.onMessageAdded(ti)
+                    }
+                    handle = null
+                    startReply(round + 1)
+                }
+            }
+            return
+        }
+        handle = null
+        job = null
         for (l in listeners) l.onStreamingChanged(false)
         if (persist) {
             conv.updatedAt = reply.finishedAt!!
@@ -355,7 +381,7 @@ class ChatEngine(
                 try {
                     store.updateMessage(reply)
                     store.updateConversation(conv)
-                    if (reply.usage != null || !ok) store.logUsage(conv.id, reply, latency, ok, acc.generationId, 0)
+                    if (reply.usage != null || !ok) store.logUsage(conv.id, reply, latency, ok, acc.generationId, round)
                 } catch (e: Exception) {
                     Log.e("could not save reply", e)
                 }
@@ -369,5 +395,6 @@ class ChatEngine(
         const val PERSIST_MS = 1000L
         const val PERSIST_CHARS = 2048
         const val MAX_IMAGES_SENT = 4
+        const val MAX_TOOL_ROUNDS = 6
     }
 }

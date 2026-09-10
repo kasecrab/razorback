@@ -22,10 +22,22 @@ class ChatAdapter(private val messages: List<Message>) : RecyclerView.Adapter<Ch
 
     override fun getItemId(position: Int): Long = messages[position].id.hashCode().toLong()
 
-    override fun getItemViewType(position: Int): Int = if (messages[position].role == Role.USER) USER else ASSISTANT
+    override fun getItemViewType(position: Int): Int {
+        val m = messages[position]
+        return when {
+            m.role == Role.USER -> USER
+            m.role == Role.TOOL -> TOOL
+            m.role == Role.ASSISTANT && m.toolCalls.isNotEmpty() && m.content.isEmpty() && m.status != io.github.kasecrab.razorback.model.MessageStatus.STREAMING -> TOOL
+            else -> ASSISTANT
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-        val view = if (viewType == USER) UserMessageView(parent.context) else AssistantMessageView(parent.context)
+        val view: View = when (viewType) {
+            USER -> UserMessageView(parent.context)
+            TOOL -> ToolCardView(parent.context)
+            else -> AssistantMessageView(parent.context)
+        }
         view.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         val holder = Holder(view)
         val menu: () -> Unit = { onMenu?.invoke(holder.bindingAdapterPosition) }
@@ -41,6 +53,7 @@ class ChatAdapter(private val messages: List<Message>) : RecyclerView.Adapter<Ch
         when (val v = holder.itemView) {
             is UserMessageView -> v.bind(m)
             is AssistantMessageView -> v.bind(m)
+            is ToolCardView -> v.bind(m)
         }
     }
 
@@ -55,6 +68,7 @@ class ChatAdapter(private val messages: List<Message>) : RecyclerView.Adapter<Ch
     companion object {
         const val USER = 0
         const val ASSISTANT = 1
+        const val TOOL = 2
         val STREAM = Any()
     }
 }
