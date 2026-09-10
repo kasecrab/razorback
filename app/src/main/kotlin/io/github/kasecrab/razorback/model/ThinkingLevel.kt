@@ -1,6 +1,9 @@
 package io.github.kasecrab.razorback.model
 
-/** Reasoning effort sent to the provider; OFF omits the field entirely. */
+/**
+ * How hard the model should think. OFF is the router's "none"; the rest are its effort
+ * words in ascending order, so [ordinal] doubles as a rank.
+ */
 enum class ThinkingLevel(val label: String, val hint: String) {
     OFF("Off", "No reasoning"),
     MINIMAL("Minimal", "A few tokens of thought"),
@@ -11,9 +14,15 @@ enum class ThinkingLevel(val label: String, val hint: String) {
     MAX("Max", "Everything the model has"),
     ;
 
-    val wire: String get() = name.lowercase()
+    val wire: String get() = if (this == OFF) "none" else name.lowercase()
 
     companion object {
         fun fromName(name: String?): ThinkingLevel = entries.firstOrNull { it.name == name } ?: OFF
+
+        fun fromWire(word: String?): ThinkingLevel? = when (word) {
+            "none" -> OFF
+            null -> null
+            else -> entries.firstOrNull { it.wire == word }
+        }
     }
 }

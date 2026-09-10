@@ -243,6 +243,7 @@ class ChatEngine(
                 systemPrompt = prefs[Keys.SYSTEM_PROMPT],
                 maxTokens = prefs[Keys.MAX_TOKENS],
                 thinking = thinking,
+                modelInfo = info,
                 tools = offered.map { it.spec },
                 imageOutput = info?.producesImages == true,
                 preferLatency = preferLatency,

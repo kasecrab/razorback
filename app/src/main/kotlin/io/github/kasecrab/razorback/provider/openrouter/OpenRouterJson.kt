@@ -9,7 +9,7 @@ import io.github.kasecrab.razorback.core.obj
 import io.github.kasecrab.razorback.core.str
 import io.github.kasecrab.razorback.model.Message
 import io.github.kasecrab.razorback.model.Role
-import io.github.kasecrab.razorback.model.ThinkingLevel
+import io.github.kasecrab.razorback.model.Reasoning
 import io.github.kasecrab.razorback.model.Usage
 import io.github.kasecrab.razorback.provider.ChatEvent
 import io.github.kasecrab.razorback.provider.ChatRequest
@@ -31,7 +31,12 @@ object OpenRouterJson {
         put("messages", msgs)
         r.maxTokens?.let { put("max_tokens", it) }
         r.temperature?.let { put("temperature", it.toDouble()) }
-        if (r.thinking != ThinkingLevel.OFF) put("reasoning", jsonObject { put("effort", r.thinking.wire) })
+        Reasoning.wire(r.thinking, r.modelInfo)?.let { w ->
+            put("reasoning", jsonObject {
+                w.effort?.let { put("effort", it) }
+                w.enabled?.let { put("enabled", it) }
+            })
+        }
         if (r.tools.isNotEmpty()) put("tools", JSONArray(r.tools))
         if (r.imageOutput) put("modalities", JSONArray().put("image").put("text"))
         if (r.preferLatency) put("provider", jsonObject { put("sort", "latency") })

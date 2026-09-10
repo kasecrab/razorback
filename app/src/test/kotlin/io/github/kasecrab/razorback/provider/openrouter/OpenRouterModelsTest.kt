@@ -10,7 +10,8 @@ class OpenRouterModelsTest {
     fun parsesPricingPerMillionAndCapabilities() {
         val json = JSONObject(
             """{"data":[{"id":"z/b","name":"B","context_length":128000,"pricing":{"prompt":"0.0000015","completion":"0.000006"},
-            "supported_parameters":["tools","reasoning"],"architecture":{"input_modalities":["text","image"],"output_modalities":["text"]}},
+            "supported_parameters":["tools","reasoning"],"architecture":{"input_modalities":["text","image"],"output_modalities":["text"]},
+            "reasoning":{"mandatory":false,"default_enabled":true,"supported_efforts":["max","high","low"],"default_effort":"high"}},
             {"id":"a/a","pricing":{"prompt":"0","completion":"0"}},{"name":"no id"}]}""",
         )
         val models = OpenRouterModels.parse(json)
@@ -21,5 +22,10 @@ class OpenRouterModelsTest {
         assertTrue(b.supportsTools && b.supportsReasoning && b.acceptsImages)
         assertTrue(models[0].isFree)
         assertEquals("a", models[0].shortName)
+        val r = b.reasoning!!
+        assertTrue(r.defaultEnabled && !r.mandatory)
+        assertEquals(listOf("max", "high", "low"), r.supportedEfforts)
+        assertEquals("high", r.defaultEffort)
+        assertEquals(null, models[0].reasoning)
     }
 }

@@ -9,6 +9,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.R
+import io.github.kasecrab.razorback.model.Reasoning
 import io.github.kasecrab.razorback.model.ThinkingLevel
 import io.github.kasecrab.razorback.ui.core.Fonts
 import io.github.kasecrab.razorback.ui.core.Theme
@@ -34,13 +35,21 @@ class ThinkingLevelSheet(context: Context) : Sheet(context) {
         title.setPadding(dp(20), dp(4), dp(20), dp(8))
         body.addView(title, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         val info = app.catalog.find(app.engine.model)
-        if (info != null && !info.supportsReasoning) {
+        val note = when {
+            info != null && !info.supportsReasoning -> context.getString(R.string.thinking_unsupported)
+            info?.reasoning?.mandatory == true -> context.getString(R.string.thinking_mandatory)
+            else -> null
+        }
+        if (note != null) {
             val c = Caption(context)
-            c.setText(R.string.thinking_unsupported)
+            c.text = note
             c.setPadding(dp(20), 0, dp(20), dp(8))
             body.addView(c)
         }
+        // A level the model cannot take is still shown when it is the one chosen, so it can be changed.
+        val offered = Reasoning.available(info)
         for (level in ThinkingLevel.entries) {
+            if (level !in offered && level != app.engine.thinking) continue
             val v = LinearLayout(context)
             v.orientation = LinearLayout.HORIZONTAL
             v.gravity = Gravity.CENTER_VERTICAL

@@ -36,6 +36,7 @@
     <string name="search_models">Search models</string>
     <string name="thinking">Thinking</string>
     <string name="thinking_unsupported">This model does not expose reasoning</string>
+    <string name="thinking_mandatory">This model always thinks; Off means its own default</string>
     <string name="filter_reasoning">Reasoning</string>
     <string name="filter_tools">Tools</string>
     <string name="filter_vision">Vision</string>

@@ -204,8 +204,9 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         val id = engine.model
         val info = app.catalog.find(id)
         bar.title.text = info?.shortName ?: id.substringAfter('/')
-        composer.thinkingChip.text = engine.thinking.label
-        composer.thinkingChip.active = engine.thinking != io.github.kasecrab.razorback.model.ThinkingLevel.OFF
+        val effective = io.github.kasecrab.razorback.model.Reasoning.effective(engine.thinking, info)
+        composer.thinkingChip.text = effective?.label ?: io.github.kasecrab.razorback.model.ThinkingLevel.OFF.label
+        composer.thinkingChip.active = effective != null
         composer.thinkingChip.visibility = if (info == null || info.supportsReasoning) View.VISIBLE else View.GONE
     }
 

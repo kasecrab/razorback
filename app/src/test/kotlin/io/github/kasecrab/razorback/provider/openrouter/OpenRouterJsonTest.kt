@@ -1,6 +1,8 @@
 package io.github.kasecrab.razorback.provider.openrouter
 
 import io.github.kasecrab.razorback.model.Message
+import io.github.kasecrab.razorback.model.ModelInfo
+import io.github.kasecrab.razorback.model.ReasoningInfo
 import io.github.kasecrab.razorback.model.Role
 import io.github.kasecrab.razorback.model.ThinkingLevel
 import io.github.kasecrab.razorback.provider.Accumulator
@@ -119,4 +121,37 @@ class OpenRouterJsonTest {
         val w = OpenRouterJson.toWire(ChatRequest("m", emptyList(), thinking = ThinkingLevel.OFF))
         assertNull(w.opt("reasoning"))
     }
+
+    @Test
+    fun thinkingOffSwitchesOffAModelThatThinksByDefault() {
+        val info = model(ReasoningInfo(mandatory = false, defaultEnabled = true, supportedEfforts = listOf("max", "high", "low"), defaultEffort = "high"))
+        val w = OpenRouterJson.toWire(ChatRequest("m", emptyList(), thinking = ThinkingLevel.OFF, modelInfo = info))
+        assertFalse(w.getJSONObject("reasoning").getBoolean("enabled"))
+        assertFalse(w.getJSONObject("reasoning").has("effort"))
+    }
+
+    @Test
+    fun thinkingOffSendsNothingWhenTheModelCannotStop() {
+        val info = model(ReasoningInfo(mandatory = true, defaultEnabled = true, supportedEfforts = listOf("high", "medium", "low"), defaultEffort = "medium"))
+        val w = OpenRouterJson.toWire(ChatRequest("m", emptyList(), thinking = ThinkingLevel.OFF, modelInfo = info))
+        assertNull(w.opt("reasoning"))
+    }
+
+    @Test
+    fun effortSnapsToWhatTheModelAccepts() {
+        val info = model(ReasoningInfo(mandatory = false, defaultEnabled = true, supportedEfforts = listOf("max", "high", "low"), defaultEffort = "high"))
+        val w = OpenRouterJson.toWire(ChatRequest("m", emptyList(), thinking = ThinkingLevel.MEDIUM, modelInfo = info))
+        assertEquals("low", w.getJSONObject("reasoning").getString("effort"))
+        val x = OpenRouterJson.toWire(ChatRequest("m", emptyList(), thinking = ThinkingLevel.XHIGH, modelInfo = info))
+        assertEquals("high", x.getJSONObject("reasoning").getString("effort"))
+    }
+
+    @Test
+    fun noReasoningSentToAModelWithoutIt() {
+        val info = ModelInfo("m", "m", 0, 0.0, 0.0, 0.0, supportsReasoning = false, supportsTools = true, inputModalities = setOf("text"), outputModalities = setOf("text"))
+        val w = OpenRouterJson.toWire(ChatRequest("m", emptyList(), thinking = ThinkingLevel.HIGH, modelInfo = info))
+        assertNull(w.opt("reasoning"))
+    }
+
+    private fun model(r: ReasoningInfo) = ModelInfo("m", "m", 0, 0.0, 0.0, 0.0, true, true, setOf("text"), setOf("text"), r)
 }

@@ -2,6 +2,7 @@ package io.github.kasecrab.razorback.provider.openrouter
 
 import io.github.kasecrab.razorback.core.Http
 import io.github.kasecrab.razorback.core.arr
+import io.github.kasecrab.razorback.core.bool
 import io.github.kasecrab.razorback.core.dbl
 import io.github.kasecrab.razorback.core.forEachObject
 import io.github.kasecrab.razorback.core.int
@@ -9,6 +10,7 @@ import io.github.kasecrab.razorback.core.obj
 import io.github.kasecrab.razorback.core.str
 import io.github.kasecrab.razorback.core.strings
 import io.github.kasecrab.razorback.model.ModelInfo
+import io.github.kasecrab.razorback.model.ReasoningInfo
 import org.json.JSONObject
 import java.io.IOException
 
@@ -31,6 +33,14 @@ object OpenRouterModels {
             val pricing = m.obj("pricing")
             val params = m.arr("supported_parameters")?.strings() ?: emptyList()
             val arch = m.obj("architecture")
+            val reasoning = m.obj("reasoning")?.let {
+                ReasoningInfo(
+                    mandatory = it.bool("mandatory") ?: false,
+                    defaultEnabled = it.bool("default_enabled") ?: false,
+                    supportedEfforts = it.arr("supported_efforts")?.strings(),
+                    defaultEffort = it.str("default_effort"),
+                )
+            }
             out.add(
                 ModelInfo(
                     id = id,
@@ -43,6 +53,7 @@ object OpenRouterModels {
                     supportsTools = "tools" in params,
                     inputModalities = arch?.arr("input_modalities")?.strings()?.toSet() ?: setOf("text"),
                     outputModalities = arch?.arr("output_modalities")?.strings()?.toSet() ?: setOf("text"),
+                    reasoning = reasoning,
                 ),
             )
         }
