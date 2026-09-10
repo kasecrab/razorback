@@ -9,6 +9,7 @@ import android.text.style.ForegroundColorSpan
 import android.widget.EditText
 import android.widget.Toast
 import io.github.kasecrab.razorback.App
+import io.github.kasecrab.razorback.core.Keys
 import io.github.kasecrab.razorback.core.Secrets
 import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.ui
@@ -22,7 +23,11 @@ import io.github.kasecrab.razorback.voice.Spoken
  */
 class Dictation(private val context: Context, private val edit: EditText) : DictationLink.Listener {
 
-    private val link = DictationLink({ App.instance.secrets.get(Secrets.DEEPGRAM) })
+    private val link = DictationLink(
+        { App.instance.secrets.get(Secrets.DEEPGRAM) },
+        { App.instance.prefs[Keys.VOICE_DICTATION_MODEL] },
+        { App.instance.prefs[Keys.VOICE_LANGUAGE] },
+    )
     private val mic = MicCapture { buf, len -> link.audio(buf, len) }
     private val spoken = Spoken()
     private var ghostStart = -1

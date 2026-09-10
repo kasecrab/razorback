@@ -157,7 +157,14 @@
     <string name="voice_meta_m">Masculine · %1$s · %2$s</string>
     <string name="cd_play_sample">Hear a sample</string>
     <string name="voice_speed">Speed · %s×</string>
-    <string name="voice_stt_model">Listening model</string>
+    <string name="voice_stt_model">Ears in voice mode</string>
+    <string name="voice_turn">End of turn</string>
+    <string name="voice_turn_quick">Quick · answers after a short pause, may cut you off</string>
+    <string name="voice_turn_balanced">Balanced</string>
+    <string name="voice_turn_patient">Patient · waits through long pauses</string>
+    <string name="voice_dictation">Typing by voice</string>
+    <string name="voice_dictation_model">Dictation model</string>
+    <string name="voice_language">Language</string>
     <string name="voice_mute_while_speaking">Mute mic while the assistant speaks</string>
     <string name="voice_mute_while_speaking_hint">For phones whose echo cancelling lets the speaker interrupt itself; disables cutting in</string>
     <string name="models_subtitle">Default model, favourites, thinking</string>

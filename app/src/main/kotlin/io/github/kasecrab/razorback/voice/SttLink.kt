@@ -14,7 +14,12 @@ import java.io.IOException
  * Deepgram Flux: transcription with turn detection built in. Audio streams the whole
  * time; the model says when the person starts, pauses and finishes a turn.
  */
-class SttLink(private val key: () -> String?, private val model: () -> String) {
+class SttLink(
+    private val key: () -> String?,
+    private val model: () -> String,
+    /** One of "quick", "balanced", "patient": how long a pause counts as the end of a turn. */
+    private val turn: () -> String = { "balanced" },
+) {
 
     enum class Turn { START, UPDATE, EAGER_END, RESUMED, END }
 
@@ -60,9 +65,21 @@ class SttLink(private val key: () -> String?, private val model: () -> String) {
         }
     }
 
-    private fun url(): String =
-        "wss://api.deepgram.com/v2/listen?model=" + java.net.URLEncoder.encode(model(), "UTF-8") +
-            "&encoding=linear16&sample_rate=" + MicCapture.SAMPLE_RATE + "&eot_threshold=0.7&eot_timeout_ms=5000"
+    private fun url(): String {
+        val m = model()
+        val sb = StringBuilder("wss://api.deepgram.com/v2/listen?model=")
+        sb.append(java.net.URLEncoder.encode(m, "UTF-8"))
+        sb.append("&encoding=linear16&sample_rate=").append(MicCapture.SAMPLE_RATE)
+        // A lower threshold answers sooner but may cut a slow speaker off; the timeout is the
+        // silence after which the turn ends whatever the confidence.
+        when (turn()) {
+            "quick" -> sb.append("&eot_threshold=0.5&eot_timeout_ms=3000")
+            "patient" -> sb.append("&eot_threshold=0.85&eot_timeout_ms=8000")
+            else -> sb.append("&eot_threshold=0.7&eot_timeout_ms=5000")
+        }
+        if (m.endsWith("-multi")) sb.append("&language=multi")
+        return sb.toString()
+    }
 
     private fun dial() {
         val apiKey = key()

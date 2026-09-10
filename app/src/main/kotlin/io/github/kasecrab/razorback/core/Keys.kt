@@ -12,7 +12,14 @@ object Keys {
     val FAVORITES = Key("model.favorites", "")
     val WEB_SEARCH = Key("tools.web_search", true)
 
+    /** Flux model for voice mode: "flux-general-en" or "flux-general-multi". */
     val VOICE_STT_MODEL = Key("voice.stt_model", "flux-general-en")
+    /** How sure Flux must be that the person has finished before the model answers: quick, balanced, patient. */
+    val VOICE_TURN = Key("voice.turn", "balanced")
+    /** Nova model for typing by voice. */
+    val VOICE_DICTATION_MODEL = Key("voice.dictation_model", "nova-3")
+    /** Language for typing by voice: empty is English, "multi" detects and switches. */
+    val VOICE_LANGUAGE = Key("voice.language", "")
     val VOICE_TTS_VOICE = Key("voice.tts_voice", "aura-2-thalia-en")
     val VOICE_SPEED = Key("voice.speed", 1.0f)
     val VOICE_MUTE_WHILE_SPEAKING = Key("voice.mute_while_speaking", false)

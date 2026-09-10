@@ -21,8 +21,8 @@ import java.net.URLEncoder
  */
 class DictationLink(
     private val key: () -> String?,
-    private val model: String = "nova-3",
-    private val language: String = "",
+    private val model: () -> String = { "nova-3" },
+    private val language: () -> String = { "" },
 ) {
     interface Listener {
         fun onInterim(text: String)
@@ -115,9 +115,10 @@ class DictationLink(
 
     private fun url(): String {
         val sb = StringBuilder("wss://api.deepgram.com/v1/listen?model=")
-        sb.append(enc(model))
+        sb.append(enc(model()))
         sb.append("&encoding=linear16&sample_rate=16000&channels=1&interim_results=true&punctuate=true&smart_format=true&endpointing=400&utterance_end_ms=1000&filler_words=false")
-        if (language.isNotBlank()) sb.append("&language=").append(enc(language))
+        val lang = language()
+        if (lang.isNotBlank()) sb.append("&language=").append(enc(lang))
         return sb.toString()
     }
 

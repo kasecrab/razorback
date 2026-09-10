@@ -48,7 +48,7 @@ class VoiceSession(
     val inLevel: Float get() = mic.level.get() / 1000f
     val outLevel: Float get() = playback.level.get() / 1000f
 
-    private val stt = SttLink({ secrets.get(Secrets.DEEPGRAM) }, { prefs[Keys.VOICE_STT_MODEL] })
+    private val stt = SttLink({ secrets.get(Secrets.DEEPGRAM) }, { prefs[Keys.VOICE_STT_MODEL] }, { prefs[Keys.VOICE_TURN] })
     private val tts = TtsLink({ secrets.get(Secrets.DEEPGRAM) }, { prefs[Keys.VOICE_TTS_VOICE] }, { prefs[Keys.VOICE_SPEED] })
     private val mic = MicCapture(MediaRecorder.AudioSource.VOICE_COMMUNICATION) { buf, len -> stt.audio(buf, len) }
     private val playback = Playback { onDrained() }

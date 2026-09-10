@@ -27,6 +27,9 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     private val bar = TopBar(context)
     private val voiceRow = NavRow(context)
     private val sttRow = NavRow(context)
+    private val turnRow = NavRow(context)
+    private val dictationRow = NavRow(context)
+    private val languageRow = NavRow(context)
     private val orbRow = NavRow(context)
     private val thinkingRow = NavRow(context)
     private val modelRow = NavRow(context)
@@ -83,6 +86,28 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
             }.show()
         }
         list.addView(sttRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        turnRow.setOnClickListener {
+            ChoiceSheet(context, context.getString(R.string.voice_turn), TURNS.map { it.first to context.getString(it.second) }, prefs[Keys.VOICE_TURN]) {
+                prefs[Keys.VOICE_TURN] = it
+                sync()
+            }.show()
+        }
+        list.addView(turnRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        list.addView(SectionHeader(context).apply { setText(R.string.voice_dictation) })
+        dictationRow.setOnClickListener {
+            ChoiceSheet(context, context.getString(R.string.voice_dictation_model), DICTATION_MODELS, prefs[Keys.VOICE_DICTATION_MODEL]) {
+                prefs[Keys.VOICE_DICTATION_MODEL] = it
+                sync()
+            }.show()
+        }
+        list.addView(dictationRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        languageRow.setOnClickListener {
+            ChoiceSheet(context, context.getString(R.string.voice_language), LANGUAGES, prefs[Keys.VOICE_LANGUAGE]) {
+                prefs[Keys.VOICE_LANGUAGE] = it
+                sync()
+            }.show()
+        }
+        list.addView(languageRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         val mute = SwitchRow(context)
         mute.set(context.getString(R.string.voice_mute_while_speaking), context.getString(R.string.voice_mute_while_speaking_hint), prefs[Keys.VOICE_MUTE_WHILE_SPEAKING]) {
             prefs[Keys.VOICE_MUTE_WHILE_SPEAKING] = it
@@ -110,6 +135,12 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         speedLabel.text = context.getString(R.string.voice_speed, String.format(Locale.US, "%.2f", prefs[Keys.VOICE_SPEED]))
         val stt = prefs[Keys.VOICE_STT_MODEL]
         sttRow.set(R.drawable.ic_mic, context.getString(R.string.voice_stt_model), STT_MODELS.firstOrNull { it.first == stt }?.second ?: stt)
+        val turn = prefs[Keys.VOICE_TURN]
+        turnRow.set(R.drawable.ic_check, context.getString(R.string.voice_turn), context.getString(TURNS.firstOrNull { it.first == turn }?.second ?: R.string.voice_turn_balanced))
+        val dm = prefs[Keys.VOICE_DICTATION_MODEL]
+        dictationRow.set(R.drawable.ic_edit, context.getString(R.string.voice_dictation_model), DICTATION_MODELS.firstOrNull { it.first == dm }?.second ?: dm)
+        val lang = prefs[Keys.VOICE_LANGUAGE]
+        languageRow.set(R.drawable.ic_globe, context.getString(R.string.voice_language), LANGUAGES.firstOrNull { it.first == lang }?.second ?: lang)
         orbRow.set(R.drawable.ic_image, context.getString(R.string.cd_orb_style), Orbs.byId(prefs[Keys.VOICE_ORB]).name)
         thinkingRow.set(R.drawable.ic_brain, context.getString(R.string.voice_thinking_row), prefs[Keys.VOICE_THINKING].label)
         val vm = prefs[Keys.VOICE_MODEL]
@@ -119,7 +150,33 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     private companion object {
         val STT_MODELS = listOf(
             "flux-general-en" to "Flux · English",
-            "flux-general-multi" to "Flux · Multilingual",
+            "flux-general-multi" to "Flux · Multilingual (switches between ten languages)",
+        )
+        val TURNS = listOf(
+            "quick" to R.string.voice_turn_quick,
+            "balanced" to R.string.voice_turn_balanced,
+            "patient" to R.string.voice_turn_patient,
+        )
+        val DICTATION_MODELS = listOf(
+            "nova-3" to "Nova-3 · best all round",
+            "nova-3-medical" to "Nova-3 Medical · clinical vocabulary, English",
+            "nova-2" to "Nova-2 · previous generation",
+        )
+        val LANGUAGES = listOf(
+            "" to "English",
+            "multi" to "Detect and switch (Nova-3)",
+            "es" to "Spanish",
+            "fr" to "French",
+            "de" to "German",
+            "hi" to "Hindi",
+            "hi-Latn" to "Hindi, Latin script",
+            "it" to "Italian",
+            "ja" to "Japanese",
+            "ko" to "Korean",
+            "nl" to "Dutch",
+            "pt" to "Portuguese",
+            "ru" to "Russian",
+            "zh" to "Chinese",
         )
     }
 }
