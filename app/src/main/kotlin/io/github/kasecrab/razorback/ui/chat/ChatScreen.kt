@@ -111,6 +111,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
         composer.onSend = { text, pending -> send(text, pending) }
         composer.onAttach = { showAttachSheet() }
+        composer.onVoiceMode = { context.nav.push(io.github.kasecrab.razorback.ui.voice.VoiceScreen(context)) }
         composer.onStop = { engine.stop() }
         composer.modelChip.setOnClickListener { ModelPickerSheet(context).show() }
         composer.modelChip.setOnLongClickListener {
