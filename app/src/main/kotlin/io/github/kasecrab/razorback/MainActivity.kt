@@ -16,7 +16,7 @@ import io.github.kasecrab.razorback.ui.core.BackDispatcher
 import io.github.kasecrab.razorback.ui.core.ScreenStack
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.ThemeHost
-import io.github.kasecrab.razorback.ui.core.ThemeMode
+import io.github.kasecrab.razorback.ui.core.ThemeResolver
 import io.github.kasecrab.razorback.ui.core.UiContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +38,7 @@ class MainActivity : Activity() {
         window.setDecorFitsSystemWindows(false)
         window.isNavigationBarContrastEnforced = false
 
-        host = ThemeHost(Theme.build(systemMode()))
+        host = ThemeHost(ThemeResolver.resolve(this, App.instance.prefs))
         back = BackDispatcher(this)
         val ctx = UiContext(this, host, back, scope)
         root = FrameLayout(ctx)
@@ -55,17 +55,20 @@ class MainActivity : Activity() {
         wireInsets()
 
         stack.replaceRoot(ChatScreen(ctx))
+        App.instance.prefs.onChange(onPref)
     }
+
+    private val onPref: (String) -> Unit = { if (it.startsWith("theme.")) retheme() }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        val mode = systemMode()
-        if (mode != host.theme.mode) host.set(root, Theme.build(mode, host.theme.accent, host.theme.fontScale, host.theme.reduceMotion))
+        retheme()
     }
 
-    private fun systemMode(): ThemeMode {
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        return if (night) ThemeMode.DARK else ThemeMode.LIGHT
+    private fun retheme() {
+        val next = ThemeResolver.resolve(this, App.instance.prefs)
+        val cur = host.theme
+        if (next.mode != cur.mode || next.accent != cur.accent || next.fontScale != cur.fontScale || next.reduceMotion != cur.reduceMotion) host.set(root, next)
     }
 
     private fun applyWindow(theme: Theme) {
@@ -120,6 +123,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        App.instance.prefs.removeOnChange(onPref)
         scope.cancel()
         root.setOnApplyWindowInsetsListener(null)
         root.setWindowInsetsAnimationCallback(null)

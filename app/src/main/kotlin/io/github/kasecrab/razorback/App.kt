@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import io.github.kasecrab.razorback.data.ModelCache
+import io.github.kasecrab.razorback.data.PromptStore
 import io.github.kasecrab.razorback.provider.ModelCatalog
 import io.github.kasecrab.razorback.provider.openrouter.OpenRouterProvider
 import io.github.kasecrab.razorback.tools.ToolRegistry
@@ -25,6 +26,7 @@ class App : Application() {
     val db: Db by lazy { Db(this) }
     val store: ChatStore by lazy { ChatStore(db) }
     val stats: Stats by lazy { Stats(db) }
+    val prompts: PromptStore by lazy { PromptStore(db) }
     val catalog: ModelCatalog by lazy { ModelCatalog(ModelCache(filesDir)) { secrets.get(Secrets.OPENROUTER) } }
     val tools: ToolRegistry by lazy { ToolRegistry(prefs, secrets) }
     val engine: ChatEngine by lazy { ChatEngine(this, prefs, openRouter, store, catalog, tools) }

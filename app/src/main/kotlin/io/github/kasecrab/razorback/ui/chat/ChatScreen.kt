@@ -239,6 +239,14 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         sheet.add(R.drawable.ic_camera, context.getString(R.string.attach_camera)) { takePhoto() }
         sheet.add(R.drawable.ic_image, context.getString(R.string.attach_photos)) { pickPhotos() }
         sheet.add(R.drawable.ic_file, context.getString(R.string.attach_files)) { pickFile() }
+        sheet.add(R.drawable.ic_edit, context.getString(R.string.attach_prompt)) {
+            PromptPickerSheet(context) { text ->
+                val e = composer.input
+                val at = e.selectionStart.coerceAtLeast(0)
+                e.text.insert(at, text)
+                e.requestFocus()
+            }.show()
+        }
         sheet.show()
     }
 

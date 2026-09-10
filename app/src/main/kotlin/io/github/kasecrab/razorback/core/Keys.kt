@@ -14,7 +14,8 @@ object Keys {
 
     val THEME_MODE = EnumKey("theme.mode", ThemeMode.DARK, ThemeMode.entries.toTypedArray())
     val THEME_FOLLOW_SYSTEM = Key("theme.follow_system", true)
-    val ACCENT = Key("theme.accent", 0)
+    /** "p<index>" for a palette colour, "dyn" for wallpaper colours, "h<degrees>" for a custom hue. */
+    val ACCENT = Key("theme.accent", "p0")
     val FONT_SCALE = Key("theme.font_scale", 1.0f)
     val REDUCE_MOTION = Key("theme.reduce_motion", false)
 }
