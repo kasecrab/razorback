@@ -81,7 +81,7 @@ class ScreenStack(
     private fun attach(screen: Screen) {
         screens.add(screen)
         root.addView(screen, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        ThemeHost.of(root.context).apply(screen)
+        root.context.ui().host.apply(screen)
         screen.onInsetsChanged(insetTop, insetBottom, insetLeft, insetRight)
     }
 

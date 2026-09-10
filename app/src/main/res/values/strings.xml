@@ -11,4 +11,24 @@
     <string name="cd_dictate">Dictate</string>
     <string name="cd_voice_mode">Voice mode</string>
     <string name="cd_model">Choose model</string>
+    <string name="settings">Settings</string>
+    <string name="providers">Providers &amp; keys</string>
+    <string name="providers_subtitle">OpenRouter, Deepgram, web search</string>
+    <string name="openrouter">OpenRouter</string>
+    <string name="deepgram">Deepgram</string>
+    <string name="web_search">Web search</string>
+    <string name="key_hint_openrouter">sk-or-v1-…</string>
+    <string name="key_hint_generic">API key</string>
+    <string name="brave">Brave Search</string>
+    <string name="exa">Exa</string>
+    <string name="verify">Verify</string>
+    <string name="get_key">Get a key</string>
+    <string name="verifying">Checking…</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_show_key">Show key</string>
+    <string name="cd_hide_key">Hide key</string>
+    <string name="drawer_no_chats">Your chats will appear here</string>
+    <string name="you">You</string>
+    <string name="new_chat">New chat</string>
 </resources>

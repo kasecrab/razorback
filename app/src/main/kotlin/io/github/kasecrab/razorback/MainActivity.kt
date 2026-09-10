@@ -15,7 +15,11 @@ import io.github.kasecrab.razorback.ui.core.ScreenStack
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.ThemeHost
 import io.github.kasecrab.razorback.ui.core.ThemeMode
-import io.github.kasecrab.razorback.ui.core.ThemedContext
+import io.github.kasecrab.razorback.ui.core.UiContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class MainActivity : Activity() {
 
@@ -24,6 +28,7 @@ class MainActivity : Activity() {
     private lateinit var stack: ScreenStack
     private lateinit var back: BackDispatcher
     private var imeAnimating = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,10 +36,11 @@ class MainActivity : Activity() {
         window.isNavigationBarContrastEnforced = false
 
         host = ThemeHost(Theme.build(systemMode()))
-        val ctx = ThemedContext(this, host)
-        root = FrameLayout(ctx)
         back = BackDispatcher(this)
+        val ctx = UiContext(this, host, back, scope)
+        root = FrameLayout(ctx)
         stack = ScreenStack(root, back)
+        ctx.nav = stack
         back.add(stack, priority = 0)
         setContentView(root)
 
@@ -101,6 +107,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        scope.cancel()
         root.setOnApplyWindowInsetsListener(null)
         root.setWindowInsetsAnimationCallback(null)
     }
