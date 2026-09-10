@@ -33,6 +33,9 @@ class AppearanceScreen(context: Context) : Screen(context) {
     private val size = SliderView(context)
     private val modeChips = ArrayList<Pair<Chip, String>>()
     private val dotViews = ArrayList<Pair<Dot, String>>()
+    // A choice that leaves the theme as it is (dark picked while the system is already dark)
+    // never reaches onThemeChanged, so the chips follow the preferences directly.
+    private val onPref: (String) -> Unit = { if (it.startsWith("theme.")) sync() }
 
     init {
         val column = LinearLayout(context)
@@ -129,6 +132,10 @@ class AppearanceScreen(context: Context) : Screen(context) {
         for ((dot, spec) in dotViews) dot.chosen = spec == accent
         if (accent.startsWith("h")) hue.value = accent.substring(1).toFloatOrNull() ?: 240f
     }
+
+    override fun onEnter() = prefs.onChange(onPref)
+
+    override fun onExit() = prefs.removeOnChange(onPref)
 
     override fun onThemeChanged(theme: Theme) {
         super.onThemeChanged(theme)
