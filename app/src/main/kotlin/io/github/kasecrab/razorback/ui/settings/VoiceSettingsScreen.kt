@@ -11,6 +11,8 @@ import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
 import io.github.kasecrab.razorback.ui.orb.Orbs
 import io.github.kasecrab.razorback.ui.voice.OrbPickerSheet
+import io.github.kasecrab.razorback.ui.voice.VoicePickerSheet
+import io.github.kasecrab.razorback.voice.Voices
 import io.github.kasecrab.razorback.ui.widget.Caption
 import io.github.kasecrab.razorback.ui.widget.ChoiceSheet
 import io.github.kasecrab.razorback.ui.widget.SectionHeader
@@ -42,12 +44,7 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         list.setPadding(0, 0, 0, dp(32))
 
         list.addView(SectionHeader(context).apply { setText(R.string.voice_speaking) })
-        voiceRow.setOnClickListener {
-            ChoiceSheet(context, context.getString(R.string.voice_voice), VOICES, prefs[Keys.VOICE_TTS_VOICE]) {
-                prefs[Keys.VOICE_TTS_VOICE] = it
-                sync()
-            }.show()
-        }
+        voiceRow.setOnClickListener { VoicePickerSheet(context) { sync() }.show() }
         list.addView(voiceRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         speedLabel.setPadding(dp(16), dp(8), dp(16), 0)
         list.addView(speedLabel)
@@ -108,7 +105,8 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
 
     private fun sync() {
         val voice = prefs[Keys.VOICE_TTS_VOICE]
-        voiceRow.set(R.drawable.ic_waveform, context.getString(R.string.voice_voice), VOICES.firstOrNull { it.first == voice }?.second ?: voice)
+        val v = Voices.byId(voice)
+        voiceRow.set(R.drawable.ic_waveform, context.getString(R.string.voice_voice), if (v != null) "${v.name} · ${v.accent} · ${v.traits.lowercase()}" else voice)
         speedLabel.text = context.getString(R.string.voice_speed, String.format(Locale.US, "%.2f", prefs[Keys.VOICE_SPEED]))
         val stt = prefs[Keys.VOICE_STT_MODEL]
         sttRow.set(R.drawable.ic_mic, context.getString(R.string.voice_stt_model), STT_MODELS.firstOrNull { it.first == stt }?.second ?: stt)
@@ -119,21 +117,6 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     }
 
     private companion object {
-        val VOICES = listOf(
-            "aura-2-thalia-en" to "Thalia · clear, confident",
-            "aura-2-andromeda-en" to "Andromeda · casual, expressive",
-            "aura-2-helena-en" to "Helena · caring, natural",
-            "aura-2-apollo-en" to "Apollo · confident, comfortable",
-            "aura-2-arcas-en" to "Arcas · natural, smooth",
-            "aura-2-aries-en" to "Aries · warm, energetic",
-            "aura-2-asteria-en" to "Asteria · clear, knowledgeable",
-            "aura-2-athena-en" to "Athena · calm, smooth",
-            "aura-2-hera-en" to "Hera · smooth, warm",
-            "aura-2-luna-en" to "Luna · friendly, natural",
-            "aura-2-orion-en" to "Orion · approachable, comfortable",
-            "aura-2-orpheus-en" to "Orpheus · professional, clear",
-            "aura-2-zeus-en" to "Zeus · deep, trustworthy",
-        )
         val STT_MODELS = listOf(
             "flux-general-en" to "Flux · English",
             "flux-general-multi" to "Flux · Multilingual",
