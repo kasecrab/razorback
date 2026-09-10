@@ -13,12 +13,12 @@ fun secret(name: String): String? = local.getProperty(name) ?: System.getenv(nam
 
 android {
     namespace = "io.github.kasecrab.razorback"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.kasecrab.razorback"
         minSdk = 33
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
     }
