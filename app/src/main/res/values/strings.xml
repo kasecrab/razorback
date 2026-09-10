@@ -132,4 +132,9 @@
     <string name="backup_working">Working…</string>
     <string name="backup_done">Done</string>
     <string name="backup_failed">Backup failed: %s</string>
+    <string name="channel_turns">Replies in progress</string>
+    <string name="channel_replies">Finished replies</string>
+    <string name="channel_voice">Voice mode</string>
+    <string name="notif_replying">Writing a reply…</string>
+    <string name="notif_done">Reply ready</string>
 </resources>

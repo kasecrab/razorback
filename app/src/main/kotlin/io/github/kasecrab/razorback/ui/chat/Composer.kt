@@ -34,6 +34,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
     val primary = IconButton(context)
     val strip = AttachStrip(context)
 
+    val dictation = Dictation(context, input)
     var onSend: ((String, List<AttachStrip.Pending>) -> Unit)? = null
     var onAttach: (() -> Unit)? = null
     var onStop: (() -> Unit)? = null
@@ -95,6 +96,20 @@ class Composer(context: Context) : LinearLayout(context), Themed {
 
         dictate.iconRes = R.drawable.ic_mic
         dictate.contentDescription = context.getString(R.string.cd_dictate)
+        dictate.setOnClickListener { dictation.toggle() }
+        dictate.setOnLongClickListener {
+            dictation.start()
+            true
+        }
+        dictate.setOnTouchListener { _, ev ->
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_UP && dictation.isListening && ev.eventTime - ev.downTime > 400) {
+                dictation.stop()
+                true
+            } else {
+                false
+            }
+        }
+        dictation.onStateChanged = { on -> dictate.tone = if (on) IconButton.Tone.ACCENT else IconButton.Tone.SECONDARY }
         row.addView(dictate, LayoutParams(dp(40), dp(40)))
 
         primary.filled = true

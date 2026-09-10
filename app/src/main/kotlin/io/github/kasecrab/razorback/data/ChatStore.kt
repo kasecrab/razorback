@@ -46,6 +46,12 @@ class ChatStore(private val db: Db) {
         out
     }
 
+    suspend fun getConversation(id: String): Conversation? = withContext(Dispatchers.IO) {
+        db.readableDatabase.rawQuery("SELECT id,title,model,created_at,updated_at,pinned,archived FROM conversations WHERE id=?", arrayOf(id)).use { c ->
+            if (c.moveToFirst()) Conversation(c.getString(0), c.getString(1), c.getString(2), c.getLong(3), c.getLong(4), c.getInt(5) != 0, c.getInt(6) != 0) else null
+        }
+    }
+
     suspend fun loadMessages(convId: String): List<Message> = withContext(Dispatchers.IO) {
         val out = ArrayList<Message>()
         db.readableDatabase.rawQuery(

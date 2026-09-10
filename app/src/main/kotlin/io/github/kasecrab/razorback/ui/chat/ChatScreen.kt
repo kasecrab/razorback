@@ -197,6 +197,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     }
 
     override fun onExit() {
+        composer.dictation.release()
         engine.removeListener(this)
         app.prefs.removeOnChange(onPref)
         app.catalog.removeOnChange(onCatalog)
@@ -231,6 +232,9 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         }
         val content = if (blocks.isEmpty()) text else blocks.toString() + text
         if (content.isBlank() && images.isEmpty()) return
+        if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            context.ui().permissions.request(android.Manifest.permission.POST_NOTIFICATIONS) {}
+        }
         engine.send(content, images)
     }
 

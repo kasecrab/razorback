@@ -13,6 +13,10 @@ import io.github.kasecrab.razorback.ui.chat.ChatScreen
 import android.content.Intent
 import io.github.kasecrab.razorback.ui.core.ActivityResults
 import io.github.kasecrab.razorback.ui.core.BackDispatcher
+import io.github.kasecrab.razorback.ui.core.PermissionRequests
+import io.github.kasecrab.razorback.bg.Notifs
+import io.github.kasecrab.razorback.bg.TurnService
+import kotlinx.coroutines.launch
 import io.github.kasecrab.razorback.ui.core.ScreenStack
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.ThemeHost
@@ -46,6 +50,7 @@ class MainActivity : Activity() {
         ctx.nav = stack
         ctx.root = root
         ctx.results = ActivityResults { intent, code -> startActivityForResult(intent, code) }
+        ctx.permissions = PermissionRequests(this)
         uiContext = ctx
         back.add(stack, priority = 0)
         setContentView(root)
@@ -56,6 +61,40 @@ class MainActivity : Activity() {
 
         stack.replaceRoot(ChatScreen(ctx))
         App.instance.prefs.onChange(onPref)
+        Notifs.ensureChannels(this)
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    /** razorback://chat/<id> from a notification opens that conversation. */
+    private fun handleIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme != "razorback" || data.host != "chat") return
+        val id = data.lastPathSegment ?: return
+        intent.data = null
+        scope.launch {
+            val conv = App.instance.store.getConversation(id) ?: return@launch
+            App.instance.engine.open(conv)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        TurnService.stop(this)
+        Notifs.cancelReply(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (App.instance.engine.isStreaming && !isChangingConfigurations) TurnService.start(this)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (!uiContext.permissions.deliver(requestCode, grantResults)) super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     private val onPref: (String) -> Unit = { if (it.startsWith("theme.")) retheme() }

@@ -46,6 +46,7 @@ class UiContext(
     lateinit var nav: ScreenStack
     lateinit var root: FrameLayout
     lateinit var results: ActivityResults
+    lateinit var permissions: PermissionRequests
     var insetTop = 0
     var insetBottom = 0
 }
