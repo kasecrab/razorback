@@ -21,8 +21,10 @@ abstract class AgslOrb(override val id: String, override val name: String, body:
 
     private var broken = false
     private val fallback = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var attached = 0
 
     override fun onAttach() {
+        attached++
         if (shader == null && !broken) {
             try {
                 shader = RuntimeShader(source)
@@ -38,8 +40,13 @@ abstract class AgslOrb(override val id: String, override val name: String, body:
     }
 
     override fun onDetach() {
-        shader = null
-        paint.shader = null
+        // The same orb can be on screen twice (picker preview and the real thing); the
+        // shader lives until the last view lets go.
+        attached = maxOf(0, attached - 1)
+        if (attached == 0) {
+            shader = null
+            paint.shader = null
+        }
     }
 
     override fun draw(canvas: Canvas, w: Int, h: Int, t: Float, inLevel: Float, outLevel: Float, state: Int, theme: Theme) {
