@@ -58,11 +58,13 @@ class EmptyState(context: Context) : LinearLayout(context), Themed {
         private fun rebuild() {
             if (width == 0) return
             val r = width / 2f
-            val soft = (accent and 0x00FFFFFF) or 0x00000000
+            val soft = accent and 0x00FFFFFF
+            // Light falls from the upper left; the far edge dissolves into the background
+            // rather than ending in a hard rim.
             paint.shader = RadialGradient(
-                r * 0.72f, r * 0.62f, r * 1.05f,
-                intArrayOf(0xFFFFFFFF.toInt(), accent, soft),
-                floatArrayOf(0f, 0.55f, 1f),
+                r * 0.78f, r * 0.7f, r * 1.25f,
+                intArrayOf(0xFFFFFFFF.toInt(), accent, accent, soft),
+                floatArrayOf(0f, 0.4f, 0.62f, 1f),
                 Shader.TileMode.CLAMP,
             )
         }

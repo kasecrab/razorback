@@ -53,6 +53,7 @@ class Chip(context: Context) : TextView(context), Themed {
         ellipsize = android.text.TextUtils.TruncateAt.END
         compoundDrawablePadding = dp(6)
         setPadding(dp(12), 0, dp(12), 0)
+        gravity = Gravity.CENTER_VERTICAL or Gravity.START
         minimumHeight = dp(32)
         onThemeChanged(context.appTheme)
     }

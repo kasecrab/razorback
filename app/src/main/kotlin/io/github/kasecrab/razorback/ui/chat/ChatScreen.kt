@@ -79,6 +79,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         )
         bar.leading.setOnClickListener { drawer.open() }
         bar.trailing.setOnClickListener { engine.newConversation() }
+        bar.makeTitleClickable({ ModelPickerSheet(context).show() }, { context.nav.push(ModelBrowserScreen(context)) })
         column.addView(bar, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         list.layoutManager = layout
@@ -113,11 +114,6 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         composer.onAttach = { showAttachSheet() }
         composer.onVoiceMode = { context.nav.push(io.github.kasecrab.razorback.ui.voice.VoiceScreen(context)) }
         composer.onStop = { engine.stop() }
-        composer.modelChip.setOnClickListener { ModelPickerSheet(context).show() }
-        composer.modelChip.setOnLongClickListener {
-            context.nav.push(ModelBrowserScreen(context))
-            true
-        }
         composer.thinkingChip.setOnClickListener { ThinkingLevelSheet(context).show() }
         composer.temporaryChip.setOnClickListener {
             val on = !engine.temporary
@@ -180,8 +176,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     }
 
     private fun refreshTitle() {
-        bar.title.text = engine.conversation?.title
-            ?: context.getString(if (engine.temporary) R.string.temporary_chat else R.string.app_name)
+        bar.setSubtitle(engine.conversation?.title ?: if (engine.temporary) context.getString(R.string.temporary_chat) else null)
         composer.temporaryChip.active = engine.temporary
     }
 
@@ -208,7 +203,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     private fun refreshChips() {
         val id = engine.model
         val info = app.catalog.find(id)
-        composer.modelChip.text = info?.shortName ?: id.substringAfter('/')
+        bar.title.text = info?.shortName ?: id.substringAfter('/')
         composer.thinkingChip.text = engine.thinking.label
         composer.thinkingChip.active = engine.thinking != io.github.kasecrab.razorback.model.ThinkingLevel.OFF
         composer.thinkingChip.visibility = if (info == null || info.supportsReasoning) View.VISIBLE else View.GONE

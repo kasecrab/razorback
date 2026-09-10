@@ -60,7 +60,9 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
         panel.addView(body, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(panel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         setWillNotDraw(false)
-        onThemeChanged(context.appTheme)
+        // Subclasses are still being built here, so only the base look is applied now;
+        // show() walks the finished tree with the theme.
+        paintBase(context.appTheme)
     }
 
     open fun show() {
@@ -114,7 +116,9 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
         canvas.drawColor((scrimColor and 0x00FFFFFF) or (a shl 24))
     }
 
-    override fun onThemeChanged(theme: Theme) {
+    override fun onThemeChanged(theme: Theme) = paintBase(theme)
+
+    private fun paintBase(theme: Theme) {
         scrimColor = theme.scrim
         panel.background = Shapes.rounded(theme.surfaceElevated, dp(theme.radiusXl)).apply {
             cornerRadii = floatArrayOf(dp(theme.radiusXl), dp(theme.radiusXl), dp(theme.radiusXl), dp(theme.radiusXl), 0f, 0f, 0f, 0f)

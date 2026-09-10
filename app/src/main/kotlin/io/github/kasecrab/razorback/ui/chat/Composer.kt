@@ -27,7 +27,6 @@ class Composer(context: Context) : LinearLayout(context), Themed {
 
     val input = EditText(context)
     val attach = IconButton(context)
-    val modelChip = Chip(context)
     val thinkingChip = Chip(context)
     val temporaryChip = Chip(context)
     val dictate = IconButton(context)
@@ -74,15 +73,10 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         attach.setOnClickListener { onAttach?.invoke() }
         row.addView(attach, LayoutParams(dp(40), dp(40)))
 
-        modelChip.style = Chip.Style.PLAIN
-        modelChip.trailingIcon = R.drawable.ic_chevron_down
-        modelChip.contentDescription = context.getString(R.string.cd_model)
-        modelChip.text = "Model"
-        row.addView(modelChip, LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)))
-
         thinkingChip.style = Chip.Style.PLAIN
         thinkingChip.leadingIcon = R.drawable.ic_brain
         thinkingChip.text = "Off"
+        thinkingChip.setPadding(dp(8), 0, dp(10), 0)
         row.addView(thinkingChip, LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)))
 
         temporaryChip.style = Chip.Style.PLAIN
