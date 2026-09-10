@@ -180,6 +180,7 @@ class VoiceSession(
         if (m.role != Role.ASSISTANT) return
         val content = m.content
         if (content.length > spokenChars) {
+            if (spokenChars == 0) Log.d { "voice: first token ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
             chunker.push(content.substring(spokenChars))
             spokenChars = content.length
             listener?.onAssistantText(content)
@@ -213,6 +214,7 @@ class VoiceSession(
     private fun speak(sentence: String) {
         val text = SpeechText.strip(sentence)
         if (text.isBlank()) return
+        Log.d { "voice: sentence of ${text.length} chars to aura ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
         tts.speak(text)
         // Aura only returns audio for text that has been flushed; one flush per sentence
         // means the first sentence plays while the model is still writing the rest.
