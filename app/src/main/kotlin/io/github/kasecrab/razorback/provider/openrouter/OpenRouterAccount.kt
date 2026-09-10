@@ -1,6 +1,7 @@
 package io.github.kasecrab.razorback.provider.openrouter
 
 import io.github.kasecrab.razorback.core.Http
+import io.github.kasecrab.razorback.core.HttpException
 import io.github.kasecrab.razorback.core.bool
 import io.github.kasecrab.razorback.core.dbl
 import io.github.kasecrab.razorback.core.obj
@@ -27,7 +28,12 @@ object OpenRouterAccount {
 
     fun fetch(key: String): AccountInfo {
         val h = OpenRouter.headers(key)
-        val k = Http.getJson("${OpenRouter.BASE}/key", h).let { it.obj("data") ?: it }
+        // /key is the documented path; older deployments and the mock server answer at /auth/key.
+        val k = try {
+            Http.getJson("${OpenRouter.BASE}/key", h)
+        } catch (e: HttpException) {
+            if (e.status == 404 || e.status == 405) Http.getJson("${OpenRouter.BASE}/auth/key", h) else throw e
+        }.let { it.obj("data") ?: it }
         var credits: Double? = null
         var used: Double? = null
         try {
