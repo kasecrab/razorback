@@ -31,4 +31,19 @@
     <string name="drawer_no_chats">Your chats will appear here</string>
     <string name="you">You</string>
     <string name="new_chat">New chat</string>
+    <string name="models">Models</string>
+    <string name="browse_models">Browse all models</string>
+    <string name="search_models">Search models</string>
+    <string name="thinking">Thinking</string>
+    <string name="thinking_unsupported">This model does not expose reasoning</string>
+    <string name="filter_reasoning">Reasoning</string>
+    <string name="filter_tools">Tools</string>
+    <string name="filter_vision">Vision</string>
+    <string name="filter_image_out">Makes images</string>
+    <string name="filter_free">Free</string>
+    <string name="loading_models">Loading models…</string>
+    <string name="no_models">No models match</string>
+    <string name="cd_favorite">Favourite</string>
+    <string name="cd_refresh">Refresh</string>
+    <string name="no_favorites_hint">Star models in the browser to keep them here</string>
 </resources>

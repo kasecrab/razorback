@@ -9,6 +9,10 @@ import androidx.recyclerview.widget.RecyclerView
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.R
 import io.github.kasecrab.razorback.chat.ChatEngine
+import io.github.kasecrab.razorback.core.Keys
+import io.github.kasecrab.razorback.ui.core.uiScope
+import io.github.kasecrab.razorback.ui.models.ModelBrowserScreen
+import kotlinx.coroutines.launch
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.dp
@@ -21,7 +25,10 @@ import io.github.kasecrab.razorback.ui.widget.TopBar
 
 class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
-    private val engine = App.instance.engine
+    private val app = App.instance
+    private val engine = app.engine
+    private val onPref: (String) -> Unit = { if (it == Keys.MODEL.name || it == Keys.THINKING.name) refreshChips() }
+    private val onCatalog: () -> Unit = { refreshChips() }
     private val drawer = DrawerHost(context)
     private val panel = DrawerPanel(context)
     private val column = LinearLayout(context)
@@ -65,6 +72,12 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
         composer.onSend = { engine.send(it) }
         composer.onStop = { engine.stop() }
+        composer.modelChip.setOnClickListener { ModelPickerSheet(context).show() }
+        composer.modelChip.setOnLongClickListener {
+            context.nav.push(ModelBrowserScreen(context))
+            true
+        }
+        composer.thinkingChip.setOnClickListener { ThinkingLevelSheet(context).show() }
         column.addView(
             composer,
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
@@ -92,14 +105,29 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     override fun onEnter() {
         context.ui().back.add(drawer, priority = 10)
         engine.addListener(this)
+        app.prefs.onChange(onPref)
+        app.catalog.onChange(onCatalog)
         adapter.notifyDataSetChanged()
         composer.streaming = engine.isStreaming
         refreshEmpty()
+        refreshChips()
+        context.uiScope.launch { app.catalog.load() }
     }
 
     override fun onExit() {
         engine.removeListener(this)
+        app.prefs.removeOnChange(onPref)
+        app.catalog.removeOnChange(onCatalog)
         context.ui().back.remove(drawer)
+    }
+
+    private fun refreshChips() {
+        val id = engine.model
+        val info = app.catalog.find(id)
+        composer.modelChip.text = info?.shortName ?: id.substringAfter('/')
+        composer.thinkingChip.text = engine.thinking.label
+        composer.thinkingChip.active = engine.thinking != io.github.kasecrab.razorback.model.ThinkingLevel.OFF
+        composer.thinkingChip.visibility = if (info == null || info.supportsReasoning) View.VISIBLE else View.GONE
     }
 
     override fun onInsetsChanged(top: Int, bottom: Int, left: Int, right: Int) {

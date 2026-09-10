@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -43,6 +44,9 @@ class UiContext(
     val scope: CoroutineScope,
 ) : ContextWrapper(base) {
     lateinit var nav: ScreenStack
+    lateinit var root: FrameLayout
+    var insetTop = 0
+    var insetBottom = 0
 }
 
 fun Context.ui(): UiContext {

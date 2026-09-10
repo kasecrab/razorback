@@ -29,6 +29,7 @@ class MainActivity : Activity() {
     private lateinit var back: BackDispatcher
     private var imeAnimating = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private lateinit var uiContext: UiContext
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +42,8 @@ class MainActivity : Activity() {
         root = FrameLayout(ctx)
         stack = ScreenStack(root, back)
         ctx.nav = stack
+        ctx.root = root
+        uiContext = ctx
         back.add(stack, priority = 0)
         setContentView(root)
 
@@ -102,6 +105,8 @@ class MainActivity : Activity() {
     private fun applyInsets(insets: WindowInsets) {
         val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
         val ime = insets.getInsets(WindowInsets.Type.ime())
+        uiContext.insetTop = bars.top
+        uiContext.insetBottom = bars.bottom
         stack.onInsetsChanged(bars.top, maxOf(bars.bottom, ime.bottom), bars.left, bars.right)
     }
 
