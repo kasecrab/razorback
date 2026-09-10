@@ -68,8 +68,12 @@ class ModelRow(context: Context) : LinearLayout(context), Themed {
     fun bind(m: ModelInfo, selected: Boolean, favorite: Boolean) {
         val theme = context.appTheme
         name.text = m.name
-        val price = if (m.isFree) "free" else "${Fmt.perM(m.promptPerM)} / ${Fmt.perM(m.completionPerM)} per M"
-        meta.text = "${m.id}  ·  ${Fmt.context(m.contextLength)} ctx  ·  $price"
+        val parts = ArrayList<String>(3)
+        parts.add(m.id)
+        // A model the catalogue has not described yet shows only its id.
+        if (m.contextLength > 0) parts.add("${Fmt.context(m.contextLength)} ctx")
+        if (m.contextLength > 0 || !m.isFree) parts.add(if (m.isFree) "free" else "${Fmt.perM(m.promptPerM)} / ${Fmt.perM(m.completionPerM)} per M")
+        meta.text = parts.joinToString("  ·  ")
         capReasoning.visibility = if (m.supportsReasoning) View.VISIBLE else View.GONE
         capTools.visibility = if (m.supportsTools) View.VISIBLE else View.GONE
         capVision.visibility = if (m.acceptsImages) View.VISIBLE else View.GONE
