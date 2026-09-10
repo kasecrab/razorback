@@ -72,10 +72,12 @@ class NovaEars(
         sb.append(URLEncoder.encode(model(), "UTF-8"))
         sb.append("&encoding=linear16&sample_rate=").append(MicCapture.SAMPLE_RATE)
         sb.append("&channels=1&interim_results=true&punctuate=true&smart_format=true&filler_words=false")
+        // Endpointing is the silence that ends a turn; the utterance timer is the fallback
+        // when the last word never gets a speech-final result.
         when (turn()) {
-            "quick" -> sb.append("&endpointing=200&utterance_end_ms=1000")
-            "patient" -> sb.append("&endpointing=700&utterance_end_ms=2000")
-            else -> sb.append("&endpointing=350&utterance_end_ms=1200")
+            "quick" -> sb.append("&endpointing=150&utterance_end_ms=800")
+            "patient" -> sb.append("&endpointing=600&utterance_end_ms=1800")
+            else -> sb.append("&endpointing=280&utterance_end_ms=1000")
         }
         val lang = language()
         if (lang.isNotBlank()) sb.append("&language=").append(URLEncoder.encode(lang, "UTF-8"))

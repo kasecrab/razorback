@@ -26,6 +26,8 @@ class MicCapture(
     @Volatile private var running = false
     private var thread: Thread? = null
     private var record: AudioRecord? = null
+    private var aec: AcousticEchoCanceler? = null
+    private var ns: NoiseSuppressor? = null
 
     val isRunning: Boolean get() = running
 
@@ -45,9 +47,11 @@ class MicCapture(
             rec.release()
             return false
         }
-        if (source == MediaRecorder.AudioSource.VOICE_COMMUNICATION) {
-            if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(rec.audioSessionId)?.enabled = true
-            if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(rec.audioSessionId)?.enabled = true
+        // Whichever path is used, ask for echo cancelling on the session; phones that honour
+        // it for plain recording keep the speaker from talking over itself.
+        if (AcousticEchoCanceler.isAvailable()) aec = AcousticEchoCanceler.create(rec.audioSessionId)?.also { it.enabled = true }
+        if (source == MediaRecorder.AudioSource.VOICE_COMMUNICATION && NoiseSuppressor.isAvailable()) {
+            ns = NoiseSuppressor.create(rec.audioSessionId)?.also { it.enabled = true }
         }
         record = rec
         running = true
@@ -65,6 +69,10 @@ class MicCapture(
         } catch (_: InterruptedException) {
         }
         thread = null
+        aec?.release()
+        aec = null
+        ns?.release()
+        ns = null
         record?.let {
             try {
                 it.stop()

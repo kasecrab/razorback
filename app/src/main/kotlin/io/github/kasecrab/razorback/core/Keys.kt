@@ -14,8 +14,11 @@ object Keys {
 
     /** Ears for voice mode: "nova-3" (same accuracy as dictation), "flux-general-en" or "flux-general-multi" (built-in turn taking). */
     val VOICE_STT_MODEL = Key("voice.stt_model", "nova-3")
-    /** "call" records through the phone's call path with echo cancelling; "clean" records plainly, as dictation does. */
-    val VOICE_MIC = Key("voice.mic", "call")
+    /**
+     * "clean" records plainly, as dictation does, which hears best; "call" goes through the
+     * phone's call path, which cancels the speaker's echo but often narrows the sound.
+     */
+    val VOICE_MIC = Key("voice.mic", "clean")
     /** How sure Flux must be that the person has finished before the model answers: quick, balanced, patient. */
     val VOICE_TURN = Key("voice.turn", "balanced")
     /** Nova model for typing by voice. */
