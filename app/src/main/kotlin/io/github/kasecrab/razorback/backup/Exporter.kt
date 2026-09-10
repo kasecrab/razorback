@@ -26,6 +26,7 @@ object Exporter {
         ZipOutputStream(out.buffered()).use { zip ->
             val counts = HashMap<String, Int>()
             for (t in Rows.TABLES) db.rawQuery("SELECT COUNT(*) FROM $t", null).use { c -> c.moveToFirst(); counts[t] = c.getInt(0) }
+            counts["attachments"] = ImagePrep.dir(context).listFiles()?.count { it.isFile } ?: 0
             entry(zip, "manifest.json", Manifest(Manifest.FORMAT, BuildConfig.VERSION_NAME, System.currentTimeMillis(), counts).toJson().toString(2))
             entry(zip, "settings.json", settingsJson(app, includeKeys = false).toString(2))
             val attachmentsDir = ImagePrep.dir(context).absolutePath

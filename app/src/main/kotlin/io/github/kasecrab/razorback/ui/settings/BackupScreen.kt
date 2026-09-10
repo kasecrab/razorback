@@ -89,7 +89,7 @@ class BackupScreen(context: Context) : Screen(context) {
     private fun finishImport(r: Importer.Result) {
         App.instance.engine.newConversation()
         App.instance.favorites.reload()
-        val parts = r.tables.entries.joinToString(", ") { "${it.value} ${it.key}" }
+        val parts = (r.tables.filterKeys { it != "attachments" }.entries.map { "${it.value} ${it.key.replace('_', ' ')}" } + "${r.files} attachment files").joinToString(", ")
         status.text = context.getString(R.string.backup_done) + if (parts.isNotEmpty()) ": $parts" else ""
     }
 
