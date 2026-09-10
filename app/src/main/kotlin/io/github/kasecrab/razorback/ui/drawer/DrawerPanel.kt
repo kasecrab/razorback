@@ -42,6 +42,8 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
 
     init {
         orientation = VERTICAL
+        // Taps between the rows must end here, not on the chat underneath.
+        isClickable = true
 
         brand.typeface = Fonts.medium
         brand.setText(R.string.app_name)
