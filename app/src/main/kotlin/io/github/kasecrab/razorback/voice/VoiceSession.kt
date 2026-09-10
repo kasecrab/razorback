@@ -57,6 +57,8 @@ class VoiceSession(
     private var awaitingFlush = false
     private var playbackStartedAt = 0L
     private var muted = false
+    /** A finished turn that arrived while the previous reply was still being cancelled. */
+    private var pendingTurn: String? = null
 
     fun start() {
         if (isActive) return
@@ -86,7 +88,7 @@ class VoiceSession(
         playback.stop()
         focus.release()
         chunker.reset()
-        replyIndex = -1
+        pendingTurn = null
         awaitingFlush = false
         state = State.IDLE
     }
@@ -170,6 +172,14 @@ class VoiceSession(
         spokenChars = 0
         awaitingFlush = false
         state = State.THINKING
+        if (engine.isStreaming) {
+            // The cut-off reply has not let go of the stream yet; the engine would drop a
+            // send now. The turn waits for the stream to end and goes out then.
+            pendingTurn = text
+            replyIndex = -1
+            engine.stop()
+            return
+        }
         replyIndex = engine.messages.size + 1
         engine.send(text, thinking = prefs[Keys.VOICE_THINKING], model = prefs[Keys.VOICE_MODEL].ifEmpty { engine.model }, preferLatency = true)
     }
@@ -207,7 +217,14 @@ class VoiceSession(
     }
 
     override fun onStreamingChanged(streaming: Boolean) {
-        if (!streaming && replyIndex >= 0 && engine.messages.getOrNull(replyIndex)?.status == MessageStatus.CUT && state == State.THINKING) {
+        if (streaming) return
+        val next = pendingTurn
+        if (next != null) {
+            pendingTurn = null
+            ask(next)
+            return
+        }
+        if (replyIndex >= 0 && engine.messages.getOrNull(replyIndex)?.status == MessageStatus.CUT && state == State.THINKING) {
             replyIndex = -1
             state = State.LISTENING
         }
