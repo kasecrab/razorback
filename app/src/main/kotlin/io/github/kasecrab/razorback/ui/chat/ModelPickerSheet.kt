@@ -51,7 +51,10 @@ class ModelPickerSheet(context: Context) : Sheet(context) {
             row.bind(info, selected = id == current, favorite = app.favorites.contains(id))
             row.setOnClickListener {
                 app.engine.model = id
-                app.favorites.get(id)?.thinking?.let { app.engine.thinking = it }
+                app.favorites.get(id)?.thinking?.let {
+                    app.engine.thinking = it
+                    app.engine.fitThinking()
+                }
                 dismiss()
             }
             row.star.setOnClickListener {

@@ -47,7 +47,10 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     private val app = App.instance
     private val engine = app.engine
     private val onPref: (String) -> Unit = { if (it == Keys.MODEL.name || it == Keys.THINKING.name) refreshChips() }
-    private val onCatalog: () -> Unit = { refreshChips() }
+    private val onCatalog: () -> Unit = {
+        engine.fitThinking()
+        refreshChips()
+    }
     private var listJob: Job? = null
     private val drawer = DrawerHost(context)
     private val panel = DrawerPanel(context)

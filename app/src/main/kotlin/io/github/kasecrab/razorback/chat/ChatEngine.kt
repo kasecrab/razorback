@@ -14,6 +14,7 @@ import io.github.kasecrab.razorback.data.ChatStore
 import io.github.kasecrab.razorback.model.Conversation
 import io.github.kasecrab.razorback.model.Message
 import io.github.kasecrab.razorback.model.MessageStatus
+import io.github.kasecrab.razorback.model.Reasoning
 import io.github.kasecrab.razorback.model.Role
 import io.github.kasecrab.razorback.model.ThinkingLevel
 import io.github.kasecrab.razorback.provider.ChatRequest
@@ -64,13 +65,33 @@ class ChatEngine(
             for (l in listeners) l.onConversationChanged()
         }
 
+    /**
+     * Switching models carries the thinking level with it: the level last used with the
+     * new model comes back, or the current one is fitted to what the model accepts, so
+     * the chip and the sheet always show a choice the model can actually take.
+     */
     var model: String
         get() = prefs[Keys.MODEL]
-        set(value) = prefs.set(Keys.MODEL, value)
+        set(value) {
+            val old = prefs[Keys.MODEL]
+            if (old == value) return
+            prefs.putRawString(THINKING_FOR + old, thinking.name)
+            prefs[Keys.MODEL] = value
+            val remembered = prefs.rawString(THINKING_FOR + value)?.let { ThinkingLevel.fromName(it) }
+            thinking = remembered ?: thinking
+            fitThinking()
+        }
 
     var thinking: ThinkingLevel
         get() = prefs[Keys.THINKING]
         set(value) = prefs.set(Keys.THINKING, value)
+
+    /** Snap the level to one the current model supports; a no-op until the catalogue knows the model. */
+    fun fitThinking() {
+        val info = catalog.find(model) ?: return
+        val fitted = Reasoning.effective(thinking, info) ?: ThinkingLevel.OFF
+        if (fitted != thinking) thinking = fitted
+    }
 
     private val listeners = ArrayList<Listener>(2)
     private val main = Handler(Looper.getMainLooper())
@@ -421,6 +442,7 @@ class ChatEngine(
     }
 
     private companion object {
+        const val THINKING_FOR = "model.thinking."
         const val FLUSH_MS = 33L
         const val PERSIST_MS = 1000L
         const val PERSIST_CHARS = 2048

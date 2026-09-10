@@ -46,10 +46,10 @@ class ThinkingLevelSheet(context: Context) : Sheet(context) {
             c.setPadding(dp(20), 0, dp(20), dp(8))
             body.addView(c)
         }
-        // A level the model cannot take is still shown when it is the one chosen, so it can be changed.
+        app.engine.fitThinking()
         val offered = Reasoning.available(info)
         for (level in ThinkingLevel.entries) {
-            if (level !in offered && level != app.engine.thinking) continue
+            if (level !in offered) continue
             val v = LinearLayout(context)
             v.orientation = LinearLayout.HORIZONTAL
             v.gravity = Gravity.CENTER_VERTICAL
