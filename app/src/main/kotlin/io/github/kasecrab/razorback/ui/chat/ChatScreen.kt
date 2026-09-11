@@ -82,6 +82,11 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         )
         bar.leading.setOnClickListener { drawer.open() }
         bar.trailing.setOnClickListener { engine.newConversation() }
+        // The drawer carries its own new-chat button; the bar's fades out as the drawer slides in.
+        drawer.onFraction = { f ->
+            bar.trailing.alpha = 1f - f
+            bar.trailing.isClickable = f < 0.5f
+        }
         bar.makeTitleClickable({ ModelPickerSheet(context).show() }, { context.nav.push(ModelBrowserScreen(context)) })
         column.addView(bar, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 

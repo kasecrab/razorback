@@ -27,6 +27,9 @@ class DrawerHost(context: Context) : ViewGroup(context), Themed, BackHandler {
 
     var onOpenChanged: ((Boolean) -> Unit)? = null
 
+    /** Every step of the slide, 0 closed to 1 open, for whatever should fade with the scrim. */
+    var onFraction: ((Float) -> Unit)? = null
+
     /** 0 closed, 1 open. */
     var fraction = 0f
         private set(value) {
@@ -34,6 +37,7 @@ class DrawerHost(context: Context) : ViewGroup(context), Themed, BackHandler {
             field = value
             panel.translationX = -panelWidth * (1f - value)
             panel.visibility = if (value > 0f) View.VISIBLE else View.INVISIBLE
+            onFraction?.invoke(value)
             invalidate()
         }
 
