@@ -20,7 +20,11 @@ import kotlin.math.sqrt
  * stutters for one pause, and it eases back after replies that played clean.
  * [clear] drops everything at once for barge-in.
  */
-class Playback(private val onDrained: () -> Unit) {
+class Playback(
+    /** Whether audio is still owed for what has been asked of the voice; a dry queue otherwise is a wait, not a stall. */
+    private val expecting: () -> Boolean = { true },
+    private val onDrained: () -> Unit,
+) {
 
     val level = AtomicInteger(0)
 
@@ -237,7 +241,7 @@ class Playback(private val onDrained: () -> Unit) {
             synchronized(lock) {
                 // Mid-speech with nothing queued and no end in sight: the audio is late, and the
                 // speaker will go quiet until it lands. Counted so a choppy reply can be diagnosed.
-                val starved = playing && size == 0 && !endMarked
+                val starved = playing && size == 0 && !endMarked && expecting()
                 val starvedAt = if (starved) System.nanoTime() else 0L
                 // Once dry, wait for a bigger cushion rather than playing each chunk as it lands.
                 val wanted = if (starved) minOf(cushionMs * 2, CUSHION_MAX_MS) else cushionMs

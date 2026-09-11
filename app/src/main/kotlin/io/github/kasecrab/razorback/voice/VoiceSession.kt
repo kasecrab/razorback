@@ -52,7 +52,7 @@ class VoiceSession(
     private var stt: Ears = ears()
     private val tts = TtsLink({ secrets.get(Secrets.DEEPGRAM) }, { prefs[Keys.VOICE_TTS_VOICE] }, { prefs[Keys.VOICE_SPEED] })
     private var mic = MicCapture(MediaRecorder.AudioSource.VOICE_COMMUNICATION) { buf, len -> hear(buf, len) }
-    private val playback = Playback { onDrained() }
+    private val playback = Playback({ !clock.allFlushed }) { onDrained() }
     private val focus = AudioFocus(context) { stop() }
     private val chunker = SentenceChunker { sentence -> speak(sentence) }
 
@@ -404,7 +404,9 @@ class VoiceSession(
             if (spokenChars == 0) {
                 Log.d { "voice: first token ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
                 main.removeCallbacks(slowThinking)
+                // The answer is here: a cue still playing runs straight into it, and the search is over.
                 cuePending = false
+                toolRound = false
             }
             chunker.push(content.substring(spokenChars))
             spokenChars = content.length
@@ -649,8 +651,9 @@ class VoiceSession(
         if (m.role != Role.ASSISTANT || m.status != MessageStatus.STREAMING) return
         replyIndex = index
         spokenChars = 0
-        toolRound = false
-        cuePending = false
+        // The cue and search flags stay up until the answer's first token: the cue may
+        // still be playing, and its end must be marked when its audio is all in, or the
+        // speaker sits starved and "speaking" through the whole search.
         main.removeCallbacks(slowThinking)
         main.postDelayed(slowThinking, SLOW_THINKING_MS)
     }
