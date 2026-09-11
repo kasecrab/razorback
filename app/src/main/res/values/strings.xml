@@ -81,6 +81,7 @@
     <string name="open_providers">Open providers</string>
     <string name="models_need_key">Add your OpenRouter key to see the models</string>
     <string name="search_chats">Search chats</string>
+    <string name="cd_clear_search">Clear search</string>
     <string name="temporary_chat">Temporary chat</string>
     <string name="cd_temporary">Temporary chat</string>
     <string name="group_pinned">Pinned</string>
