@@ -44,9 +44,11 @@ class Playback(private val onDrained: () -> Unit) {
     @Volatile var underruns = 0
         private set
 
-    /** Audio held back before playing starts or resumes; grows with the jitter seen. */
+    /** Audio held back before playing starts or resumes, in listening time; grows with the jitter seen. */
     @Volatile private var cushionMs = CUSHION_MS
     private var underrunsThisRun = 0
+    /** How many times faster than sent the audio is played; the cushion is that much bigger in bytes. */
+    @Volatile private var stretch = 1f
 
     /** [stretch] plays the audio that many times faster at the same pitch; 1 leaves it as sent. */
     fun start(stretch: Float = 1f) {
@@ -79,6 +81,7 @@ class Playback(private val onDrained: () -> Unit) {
             return
         }
         if (stretching) applyStretch(t, stretch)
+        this.stretch = if (stretching) stretch else 1f
         track = t
         headBase = 0L
         enqueuedBytes.set(0)
@@ -90,7 +93,9 @@ class Playback(private val onDrained: () -> Unit) {
 
     /** Changes the pace of what is already playing; a fast track cannot stretch and keeps its pace. */
     fun setStretch(stretch: Float) {
-        track?.let { applyStretch(it, stretch.coerceIn(1f, 4f)) }
+        val s = stretch.coerceIn(1f, 4f)
+        track?.let { applyStretch(it, s) }
+        this.stretch = s
     }
 
     private fun applyStretch(t: AudioTrack, stretch: Float) {
@@ -234,13 +239,9 @@ class Playback(private val onDrained: () -> Unit) {
                 // speaker will go quiet until it lands. Counted so a choppy reply can be diagnosed.
                 val starved = playing && size == 0 && !endMarked
                 val starvedAt = if (starved) System.nanoTime() else 0L
-                if (starved) {
-                    underruns++
-                    underrunsThisRun++
-                    cushionMs = minOf(cushionMs * 2, CUSHION_MAX_MS)
-                }
-                // Once dry, wait for the cushion again rather than playing each chunk as it lands.
-                val need = if (starved || !playing) BYTES_PER_MS * cushionMs else 1
+                // Once dry, wait for a bigger cushion rather than playing each chunk as it lands.
+                val wanted = if (starved) minOf(cushionMs * 2, CUSHION_MAX_MS) else cushionMs
+                val need = if (starved || !playing) (BYTES_PER_MS * wanted * stretch).toInt() else 1
                 while (running && (size == 0 || (size < need && !endMarked))) {
                     if (size == 0 && endMarked && playing) {
                         drained = true
@@ -250,6 +251,10 @@ class Playback(private val onDrained: () -> Unit) {
                     lock.wait(200)
                 }
                 if (starved && running && !drained) {
+                    // More audio came: this was a real stall mid-reply, not the wait for the end marker.
+                    underruns++
+                    underrunsThisRun++
+                    cushionMs = wanted
                     Log.d { "playback: queue ran dry for ${(System.nanoTime() - starvedAt) / 1_000_000} ms, cushion now $cushionMs ms" }
                 }
                 if (!running) return
