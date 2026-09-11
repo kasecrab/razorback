@@ -9,7 +9,7 @@ import org.json.JSONObject
 /** The tools offered on a request, given keys and switches; runs a call by name. */
 class ToolRegistry(prefs: Prefs, secrets: Secrets) {
 
-    private val webSearch = WebSearchTool({ secrets.get(Secrets.BRAVE) }, { secrets.get(Secrets.EXA) })
+    private val webSearch = WebSearchTool({ secrets.get(Secrets.BRAVE) }, { secrets.get(Secrets.EXA) }, { prefs[Keys.SEARCH_PROVIDER] })
     private val prefs = prefs
 
     fun enabled(): List<Tool> {

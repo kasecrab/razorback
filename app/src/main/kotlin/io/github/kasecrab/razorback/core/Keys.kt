@@ -11,6 +11,8 @@ object Keys {
     val SYSTEM_PROMPT = Key("prompt.system", "")
     val FAVORITES = Key("model.favorites", "")
     val WEB_SEARCH = Key("tools.web_search", true)
+    /** Which search vendor answers first, "brave" or "exa"; the other one is the backup. */
+    val SEARCH_PROVIDER = Key("tools.search_provider", Secrets.BRAVE)
 
     /** Ears for voice mode: "nova-3" (same accuracy as dictation), "flux-general-en" or "flux-general-multi" (built-in turn taking). */
     val VOICE_STT_MODEL = Key("voice.stt_model", "nova-3")

@@ -1,6 +1,7 @@
 package io.github.kasecrab.razorback.tools
 
 import io.github.kasecrab.razorback.core.Log
+import io.github.kasecrab.razorback.core.Secrets
 import io.github.kasecrab.razorback.core.int
 import io.github.kasecrab.razorback.core.jsonObject
 import io.github.kasecrab.razorback.core.str
@@ -10,8 +11,15 @@ import io.github.kasecrab.razorback.tools.search.SearchHit
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** `web_search(query, count)` backed by whichever search key the person has entered. */
-class WebSearchTool(private val braveKey: () -> String?, private val exaKey: () -> String?) : Tool {
+/**
+ * `web_search(query, count)` backed by the chosen search vendor, with the other one as the
+ * backup: it answers when the chosen vendor has no key or its call fails.
+ */
+class WebSearchTool(
+    private val braveKey: () -> String?,
+    private val exaKey: () -> String?,
+    private val preferred: () -> String,
+) : Tool {
 
     override val name: String = "web_search"
 
@@ -37,17 +45,20 @@ class WebSearchTool(private val braveKey: () -> String?, private val exaKey: () 
         val query = args.str("query")?.trim().orEmpty()
         if (query.isEmpty()) return ToolResult("query is required", isError = true)
         val count = (args.int("count") ?: 5).coerceIn(1, 10)
-        return try {
-            val hits = when {
-                braveKey() != null -> BraveSearch.search(braveKey()!!, query, count)
-                exaKey() != null -> ExaSearch.search(exaKey()!!, query, count)
-                else -> return ToolResult("no search key configured", isError = true)
+        val order = if (preferred() == Secrets.EXA) listOf(Secrets.EXA, Secrets.BRAVE) else listOf(Secrets.BRAVE, Secrets.EXA)
+        var failure: Exception? = null
+        for (vendor in order) {
+            val key = (if (vendor == Secrets.BRAVE) braveKey() else exaKey()) ?: continue
+            try {
+                val hits = if (vendor == Secrets.BRAVE) BraveSearch.search(key, query, count) else ExaSearch.search(key, query, count)
+                return ToolResult(format(hits))
+            } catch (e: Exception) {
+                Log.w("$vendor search failed: ${e.message}")
+                failure = e
             }
-            ToolResult(format(hits))
-        } catch (e: Exception) {
-            Log.w("web search failed: ${e.message}")
-            ToolResult("search failed: ${e.message}", isError = true)
         }
+        val why = failure ?: return ToolResult("no search key configured", isError = true)
+        return ToolResult("search failed: ${why.message}", isError = true)
     }
 
     private fun format(hits: List<SearchHit>): String {
