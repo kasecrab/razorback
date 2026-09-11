@@ -223,19 +223,25 @@ class VoiceSession(
                 }
             }
             Ears.Turn.END -> {
+                var cut = false
                 if (tentative) {
                     tentative = false
                     if (busy) {
+                        // Still the speaker's echo: the reply goes on.
                         if (transcript.isBlank() || isEcho(transcript)) return
                         interrupt()
+                        cut = true
                     }
                 }
                 // The transcript of an echo lands after the speaker has gone quiet, and a
                 // muffled echo the transcriber half-understood scores low and short.
-                if (!busy && isEcho(transcript)) return
-                if (recentlySpoke() && (confidence < DOUBTFUL || wordCount(transcript) < 2)) return
-                if (transcript.isBlank()) {
-                    if (state == State.USER_SPEAKING) state = State.LISTENING
+                val dropped = transcript.isBlank() ||
+                    (!cut && !busy && isEcho(transcript)) ||
+                    (recentlySpoke() && (confidence < DOUBTFUL || wordCount(transcript) < 2))
+                if (dropped) {
+                    // A turn that goes nowhere must not leave the screen "hearing" nobody, nor a
+                    // cut-off reply "speaking" silence.
+                    if (state == State.USER_SPEAKING || cut) state = State.LISTENING
                     return
                 }
                 listener?.onUserText(transcript, true)
