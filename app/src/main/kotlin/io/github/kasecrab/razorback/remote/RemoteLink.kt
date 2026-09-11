@@ -25,6 +25,8 @@ class RemoteLink(
     interface Watcher {
         fun onSessions(sessions: List<Frames.Session>) {}
         fun onEvents(session: String, events: List<JSONObject>) {}
+        /** Whole messages, from before this phone was listening. */
+        fun onSnapshot(session: String, messages: List<JSONObject>) {}
         fun onState(state: Frames.SessionState) {}
         fun onAsk(question: Frames.Question, isTool: Boolean) {}
         fun onAnswered(id: Long, by: String) {}
@@ -146,13 +148,13 @@ class RemoteLink(
             is Frames.FromDesk.Events -> {
                 val cursor = client?.cursor ?: 0
                 scope.launch {
-                    store.rememberEvents(payload.session, cursor * 1000, payload.events)
+                    store.rememberEvents(payload.session, cursor, payload.events)
                     store.rememberCursor(hub, cursor)
                 }
                 watchers.forEach { it.onEvents(payload.session, payload.events) }
             }
             is Frames.FromDesk.Snapshot ->
-                watchers.forEach { it.onEvents(payload.session, payload.messages) }
+                watchers.forEach { it.onSnapshot(payload.session, payload.messages) }
             is Frames.FromDesk.Ask ->
                 watchers.forEach { it.onAsk(payload.question, payload.isTool) }
             is Frames.FromDesk.Answered ->

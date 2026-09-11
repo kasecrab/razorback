@@ -99,12 +99,13 @@ object Schema {
             "CREATE INDEX idx_remote_session_order ON remote_sessions(hub, seen_at DESC)",
             """CREATE TABLE remote_events(
                 session_id TEXT NOT NULL,
-                seq INTEGER NOT NULL,
+                n INTEGER NOT NULL,
+                idx INTEGER NOT NULL,
                 kind TEXT NOT NULL,
                 body TEXT NOT NULL,
                 at INTEGER NOT NULL,
-                PRIMARY KEY(session_id, seq))""",
-            "CREATE INDEX idx_remote_event_order ON remote_events(session_id, seq)",
+                PRIMARY KEY(session_id, n, idx))""",
+            "CREATE INDEX idx_remote_event_order ON remote_events(session_id, n, idx)",
         ),
     )
 }

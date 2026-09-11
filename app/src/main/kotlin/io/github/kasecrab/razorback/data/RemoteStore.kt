@@ -116,7 +116,8 @@ class RemoteStore(private val db: Db) {
         withContext(kotlinx.coroutines.Dispatchers.IO) {
             val out = ArrayList<JSONObject>()
             db.readableDatabase.rawQuery(
-                "SELECT body FROM remote_events WHERE session_id = ? ORDER BY seq", arrayOf(session),
+                "SELECT body FROM remote_events WHERE session_id = ? ORDER BY n, idx",
+                arrayOf(session),
             ).use { c ->
                 while (c.moveToNext()) {
                     out.add(runCatching { JSONObject(c.getString(0)) }.getOrNull() ?: continue)
@@ -126,28 +127,28 @@ class RemoteStore(private val db: Db) {
         }
 
     /**
-     * Keep what a session said. The sequence number is the relay's, so the
-     * same frame arriving twice — which replay makes ordinary — is stored
-     * once.
+     * Keep what a session said, under the relay's own numbering and the
+     * position inside that frame. The relay replays what it kept whenever
+     * this phone reconnects, so the same frame arriving twice is ordinary,
+     * and keying it this way means it is stored once.
      */
-    suspend fun rememberEvents(session: String, from: Long, events: List<JSONObject>) =
+    suspend fun rememberEvents(session: String, n: Long, events: List<JSONObject>) =
         withContext(db.writer) {
             db.tx { database ->
-                var seq = from
                 val now = System.currentTimeMillis()
-                for (e in events) {
+                for ((idx, e) in events.withIndex()) {
                     database.insertWithOnConflict(
                         "remote_events", null,
                         ContentValues().apply {
                             put("session_id", session)
-                            put("seq", seq)
+                            put("n", n)
+                            put("idx", idx)
                             put("kind", e.optString("type"))
                             put("body", e.toString())
                             put("at", now)
                         },
                         android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE,
                     )
-                    seq += 1
                 }
             }
         }

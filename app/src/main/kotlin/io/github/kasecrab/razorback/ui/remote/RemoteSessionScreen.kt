@@ -116,6 +116,26 @@ class RemoteSessionScreen(context: Context, private val session: String) :
         }
     }
 
+    /**
+     * What was said before this phone was listening. Messages, not events —
+     * they carry a role and their whole text rather than a piece of one.
+     */
+    override fun onSnapshot(session: String, messages: List<JSONObject>) {
+        if (session != this.session && session.isNotEmpty()) return
+        if (text.isNotEmpty()) return
+        val out = StringBuilder()
+        for (m in messages) {
+            val said = m.optString("content")
+            if (said.isBlank()) continue
+            when (m.optString("role")) {
+                "user" -> out.append("\n\n**you:** ").append(said).append("\n\n")
+                "assistant" -> out.append(said)
+                else -> {}
+            }
+        }
+        if (out.isNotEmpty()) append(out.toString())
+    }
+
     override fun onAsk(question: Frames.Question, isTool: Boolean) {
         this.question = question
         val what = if (isTool) "Run ${question.what}?" else question.what
