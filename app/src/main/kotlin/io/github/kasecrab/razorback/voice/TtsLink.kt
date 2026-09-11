@@ -47,8 +47,6 @@ class TtsLink(
     private var speedRefused = false
     private var speedSent = false
     private var lastModel = ""
-    /** Audio still in flight after a Clear belongs to the reply that was cut off; it is dropped until Deepgram confirms. */
-    @Volatile private var clearing = false
 
     fun warm() {
         if (armed) return
@@ -63,20 +61,21 @@ class TtsLink(
 
     fun flush() = send("{\"type\":\"Flush\"}")
 
-    /** Drop everything queued upstream and whatever of it is still on its way; for barge-in. */
+    /**
+     * Drop everything queued upstream and whatever of it is still on its way; for barge-in.
+     * The socket is let go and a fresh one dialled: audio the old one still delivers is the
+     * cut-off reply's, and a new socket cannot carry any of it, whatever the service does
+     * with a Clear. The handshake overlaps the model's thinking time.
+     */
     fun clear() {
         synchronized(queue) { queue.clear() }
         val socket = ws
-        if (socket != null && socket.isOpen) {
-            // Deepgram answers with Cleared once the old audio has stopped, and anything spoken
-            // after this goes out behind it, so new audio can only ever follow the Cleared.
-            clearing = true
-            try {
-                socket.sendText("{\"type\":\"Clear\"}")
-            } catch (e: IOException) {
-                Log.d { "clear failed: ${e.message}" }
-            }
+        ws = null
+        if (socket != null) {
+            if (socket.isOpen) socket.sendText("{\"type\":\"Clear\"}")
+            socket.close()
         }
+        if (armed) dial()
     }
 
     fun stop() {
@@ -139,7 +138,6 @@ class TtsLink(
         val socket = WebSocketClient(url(), mapOf("Authorization" to "Token $apiKey"), object : WebSocketClient.Listener {
             override fun onOpen(ws: WebSocketClient) {
                 backoffMs = 400L
-                clearing = false
                 val pending = synchronized(queue) { ArrayList(queue).also { queue.clear() } }
                 for (f in pending) {
                     try {
@@ -152,7 +150,7 @@ class TtsLink(
 
             override fun onBinary(ws: WebSocketClient, data: ByteArray) {
                 // A socket that stop() let go of may still drain for a moment; its audio is not ours.
-                if (this@TtsLink.ws !== ws || clearing) return
+                if (this@TtsLink.ws !== ws) return
                 listener?.onAudio(data)
             }
 
@@ -164,11 +162,8 @@ class TtsLink(
                     null
                 }
                 when (type) {
-                    "Flushed" -> if (!clearing) listener?.onFlushed()
-                    "Cleared" -> {
-                        clearing = false
-                        main.post { listener?.onCleared() }
-                    }
+                    "Flushed" -> listener?.onFlushed()
+                    "Cleared" -> main.post { listener?.onCleared() }
                     "Warning", "Error" -> Log.w("tts: $text")
                 }
             }
