@@ -35,6 +35,9 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
 
     private val header = FrameLayout(context)
     private val remote = LinearLayout(context)
+    // Declared before init: the theme is applied there, and it redraws these rows.
+    private var remoteMachine = ""
+    private var remoteSessions: List<io.github.kasecrab.razorback.remote.Frames.Session> = emptyList()
     private val brand = TextView(context)
     private val list = RecyclerView(context)
     private val adapter = ChatListAdapter({ onOpen?.invoke(it) }, { onMenu?.invoke(it) })
@@ -98,9 +101,6 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
         placeholder.visibility = if (convs.isEmpty()) View.VISIBLE else View.GONE
         placeholder.setText(if (search.text.isBlank()) R.string.drawer_no_chats else R.string.no_models)
     }
-
-    private var remoteMachine = ""
-    private var remoteSessions: List<io.github.kasecrab.razorback.remote.Frames.Session> = emptyList()
 
     /** What a paired machine says it has open. */
     fun setRemoteSessions(machine: String, sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) {
