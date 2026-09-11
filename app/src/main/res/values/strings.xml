@@ -52,6 +52,8 @@
     <string name="filter_vision">Vision</string>
     <string name="filter_image_out">Makes images</string>
     <string name="filter_free">Free</string>
+    <string name="price_free">Free</string>
+    <string name="price_per_million">%1$s in · %2$s out per M</string>
     <string name="loading_models">Loading models…</string>
     <string name="no_models">No models match</string>
     <string name="cd_favorite">Favourite</string>
