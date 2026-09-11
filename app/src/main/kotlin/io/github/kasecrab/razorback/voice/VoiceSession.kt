@@ -491,7 +491,7 @@ class VoiceSession(
     private fun onDrained() {
         playbackEndedAt = SystemClock.elapsedRealtime()
         context.mainExecutor.execute {
-            if (state != State.SPEAKING) return@execute
+            if (state != State.SPEAKING && state != State.SEARCHING) return@execute
             if (toolRound || (engine.isStreaming && !streamDone)) {
                 // The cue has been said; the answer is still on its way.
                 cuePending = false
@@ -529,7 +529,8 @@ class VoiceSession(
      * Whichever assistant message starts streaming while the turn is ours is the one to read.
      */
     override fun onMessageAdded(index: Int) {
-        if (state != State.THINKING && state != State.SPEAKING) return
+        // The answer after a tool round arrives while the state is still SEARCHING.
+        if (!busy) return
         val m = engine.messages.getOrNull(index) ?: return
         if (m.role != Role.ASSISTANT || m.status != MessageStatus.STREAMING) return
         replyIndex = index
