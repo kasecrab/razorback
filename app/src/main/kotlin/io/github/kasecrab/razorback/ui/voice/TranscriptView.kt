@@ -125,6 +125,17 @@ class TranscriptView(context: Context) : ScrollView(context), Themed {
         post { fullScroll(FOCUS_DOWN) }
     }
 
+    /**
+     * Content grows before any post runs, and history is laid out only after the screen
+     * appears; so the end is held in the layout pass itself while following.
+     */
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        super.onLayout(changed, l, t, r, b)
+        if (!following) return
+        val max = maxOf(0, column.height + paddingTop + paddingBottom - height)
+        if (scrollY != max) scrollTo(0, max)
+    }
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         if (ev.actionMasked == MotionEvent.ACTION_DOWN) following = false
         return super.onInterceptTouchEvent(ev)
