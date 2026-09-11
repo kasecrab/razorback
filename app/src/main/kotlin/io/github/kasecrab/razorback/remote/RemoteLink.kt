@@ -175,7 +175,16 @@ class RemoteLink(
     /** Start a session in [cwd] on the machine; the one that appears is announced through [Watcher.onSessionStarted]. */
     fun newSession(cwd: String) {
         openNewest = true
+        startingIn = cwd
         client?.send(Frames.newSession(cwd, null))
+    }
+
+    /** The directory the last new session was asked for, for the screen that opens before the list knows it. */
+    var startingIn: String = ""
+        private set
+
+    fun rename(session: String, name: String) {
+        client?.send(Frames.rename(session, name))
     }
 
     fun refresh() {

@@ -228,6 +228,9 @@ object Frames {
         .put("reply", JSONObject().put("reply", "dismissed"))
         .toString().toByteArray()
 
+    fun rename(session: String, name: String): ByteArray = JSONObject()
+        .put("k", "rename").put("session", session).put("name", name).toString().toByteArray()
+
     fun resume(session: String): ByteArray = JSONObject()
         .put("k", "resume").put("session", session).toString().toByteArray()
 

@@ -275,6 +275,27 @@
     <string name="remote_new_session">New session</string>
     <string name="remote_new_dir">Directory on %s</string>
     <string name="remote_other_dir">Another directory…</string>
+    <string name="remote_starting_in">Starting a session in %s</string>
+    <string name="remote_connected">Connected</string>
+    <string name="remote_connecting">Connecting…</string>
+    <string name="remote_running">Running</string>
+    <string name="remote_stopped">Not running</string>
+    <string name="remote_places">Directories</string>
+    <string name="remote_tile_sessions">Sessions</string>
+    <string name="remote_tile_running">Running</string>
+    <string name="remote_holder_daemon">ah remote serve</string>
+    <string name="remote_holder_window">a window</string>
+    <string name="remote_waiting_hello">Waiting for the machine to say hello</string>
+    <string name="copy_session_id">Copy session ID</string>
+    <string name="age_now">now</string>
+    <plurals name="remote_connected_running">
+        <item quantity="one">Connected · %d session running</item>
+        <item quantity="other">Connected · %d sessions running</item>
+    </plurals>
+    <plurals name="remote_place_count">
+        <item quantity="one">%d session</item>
+        <item quantity="other">%d sessions</item>
+    </plurals>
     <string name="remote_offline">Not connected</string>
     <string name="remote_nothing_open">Nothing open</string>
     <string name="remote_not_running">%s · not running</string>

@@ -160,11 +160,10 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
             drawer.close()
             engine.open(it)
         }
-        panel.onRemote = { session ->
+        panel.onRemoteHub = {
             drawer.close()
-            openRemote(session.id)
+            context.nav.push(io.github.kasecrab.razorback.ui.remote.RemoteHubScreen(context))
         }
-        panel.onRemoteNew = { newRemoteSession() }
         panel.onMenu = { showConversationMenu(it) }
         panel.search.onTextChanged = { reloadConversations() }
         panel.settings.setOnClickListener {
@@ -203,48 +202,18 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         context.uiScope.launch { app.catalog.load() }
     }
 
+    /** The session the machine just started opens by itself, wherever the person is in the app. */
     private fun openRemote(session: String) {
         if (context.nav.top is io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen) return
-        context.nav.push(io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen(context, session))
+        context.nav.push(io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen(context, session, app.remote.startingIn.ifBlank { null }))
     }
 
-    /** A new session on the machine, in a directory it allows; the last one used is the guess. */
-    private fun newRemoteSession() {
-        val remote = app.remote
-        if (!remote.ready()) {
-            Toast.makeText(context, R.string.remote_offline, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val host = remote.machine?.host ?: context.getString(R.string.remote)
-        val places = remote.startPlaces()
-        val typed = { prefill: String ->
-            InputSheet(context, context.getString(R.string.remote_new_dir, host), prefill) { cwd ->
-                drawer.close()
-                remote.newSession(cwd)
-            }.show()
-        }
-        if (places.size <= 1) {
-            typed(places.firstOrNull() ?: "")
-            return
-        }
-        // The machine's roots first, then where its sessions already run; anywhere under a root is allowed too.
-        val sheet = ActionSheet(context).header(context.getString(R.string.remote_new_session), context.getString(R.string.remote_new_dir, host))
-        for (place in places.take(8)) {
-            sheet.add(R.drawable.ic_file, place) {
-                drawer.close()
-                remote.newSession(place)
-            }
-        }
-        sheet.add(R.drawable.ic_edit, context.getString(R.string.remote_other_dir)) { typed(places.first()) }
-        sheet.show()
-    }
-
-    /** The paired machine's group for the sidebar, or nothing when there is no machine or a search is on. */
+    /** The paired machine's row for the sidebar, or nothing when there is no machine or a search is on. */
     private fun remoteGroup(): ChatListAdapter.Remote? {
         val remote = app.remote
         if (!remote.paired || panel.search.text.isNotBlank()) return null
-        val host = remote.machine?.host ?: context.getString(R.string.remote_sessions)
-        return ChatListAdapter.Remote(host, remote.ready(), remote.sessions, canStart = remote.canStart)
+        val host = remote.machine?.host ?: context.getString(R.string.remote)
+        return ChatListAdapter.Remote(host, remote.ready(), remote.sessions.count { it.live })
     }
 
     private fun reloadConversations() {

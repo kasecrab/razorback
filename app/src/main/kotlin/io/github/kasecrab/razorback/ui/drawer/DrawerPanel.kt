@@ -30,9 +30,8 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
     val search = SearchBox(context)
     var onOpen: ((Conversation) -> Unit)? = null
     var onMenu: ((Conversation) -> Unit)? = null
-    /** A session on a paired machine, picked from the group above the chats. */
-    var onRemote: ((io.github.kasecrab.razorback.remote.Frames.Session) -> Unit)? = null
-    var onRemoteNew: (() -> Unit)? = null
+    /** The paired machine's row above the chats was tapped. */
+    var onRemoteHub: (() -> Unit)? = null
 
     private val header = FrameLayout(context)
     private val brand = TextView(context)
@@ -56,8 +55,7 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
 
         val listHost = FrameLayout(context)
         list.layoutManager = LinearLayoutManager(context)
-        adapter.onRemoteOpen = { onRemote?.invoke(it) }
-        adapter.onRemoteNew = { onRemoteNew?.invoke() }
+        adapter.onRemoteHub = { onRemoteHub?.invoke() }
         list.adapter = adapter
         list.itemAnimator = null
         list.clipToPadding = false

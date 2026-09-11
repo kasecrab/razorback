@@ -37,7 +37,7 @@ import org.json.JSONObject
  * turned into the app's own [Message]s, so a reply from a machine across the room gets
  * the markdown, the code blocks and the folded reasoning the local chat has.
  */
-class RemoteSessionScreen(context: Context, private val session: String) : Screen(context), RemoteLink.Watcher {
+class RemoteSessionScreen(context: Context, private val session: String, private val cwdHint: String? = null) : Screen(context), RemoteLink.Watcher {
 
     private val app = App.instance
     private val link = app.remote
@@ -54,6 +54,7 @@ class RemoteSessionScreen(context: Context, private val session: String) : Scree
     /** Whole messages have come from the machine; what was kept here is no longer the best copy. */
     private var snapshotted = false
     private var attached = false
+    private var stateSeen = false
     private var busy = false
     private var next = 0
     private var following = true
@@ -153,12 +154,20 @@ class RemoteSessionScreen(context: Context, private val session: String) : Scree
 
     private fun title(): String =
         link.sessions.firstOrNull { it.id == session }?.let { (it.name ?: it.title).ifBlank { it.cwd.substringAfterLast('/') } }
-            ?: session.take(8)
+            ?: cwdHint?.substringAfterLast('/')?.ifBlank { null }
+            ?: context.getString(R.string.remote_new_session)
 
+    /** Where it runs, on which machine, and whether it is working; "connecting" until the machine has answered the attach. */
     private fun subtitle() {
-        val cwd = link.sessions.firstOrNull { it.id == session }?.cwd.orEmpty()
-        val state = if (busy) context.getString(R.string.remote_working) else null
-        bar.setSubtitle(listOfNotNull(cwd.ifBlank { null }, state).joinToString("  ·  "))
+        val host = link.machine?.host ?: context.getString(R.string.remote)
+        val cwd = link.sessions.firstOrNull { it.id == session }?.cwd?.ifBlank { null } ?: cwdHint
+        val state = when {
+            !link.ready() -> context.getString(R.string.remote_offline)
+            !stateSeen -> context.getString(R.string.remote_connecting)
+            busy -> context.getString(R.string.remote_working)
+            else -> null
+        }
+        bar.setSubtitle(listOfNotNull(host, cwd, state).joinToString("  ·  "))
     }
 
     private fun say(text: String) {
@@ -183,8 +192,8 @@ class RemoteSessionScreen(context: Context, private val session: String) : Scree
     }
 
     override fun onLink() {
-        if (!link.ready()) return
-        // Back after a drop: the attach is repeated by the link itself; the list is the machine's again.
+        // Back after a drop, the link repeats the attach itself; the machine's answer sets the state again.
+        if (!link.ready()) stateSeen = false
         subtitle()
     }
 
@@ -288,13 +297,18 @@ class RemoteSessionScreen(context: Context, private val session: String) : Scree
 
     override fun onState(state: Frames.SessionState) {
         if (state.session != session) return
+        stateSeen = true
         busy = state.busy
         composer.streaming = busy
         if (!busy) close()
         subtitle()
     }
 
-    override fun onTrouble(text: String) = note(text)
+    override fun onTrouble(text: String) {
+        // Attached before the machine had the session on its books: the next list that shows it running tries again.
+        if (text.contains("no such session")) attached = false
+        note(text)
+    }
 
     private fun answer(allow: Boolean) {
         val asked = question ?: return
