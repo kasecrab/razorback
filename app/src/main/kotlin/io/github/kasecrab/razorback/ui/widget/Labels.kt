@@ -29,7 +29,7 @@ class SectionHeader(context: Context) : TextView(context), Themed {
 /** Secondary explanatory text or a status line. */
 class Caption(context: Context) : TextView(context), Themed {
 
-    enum class Tone { NORMAL, ACCENT, DANGER }
+    enum class Tone { NORMAL, ACCENT, DANGER, OK }
 
     var tone: Tone = Tone.NORMAL
         set(value) {
@@ -48,6 +48,7 @@ class Caption(context: Context) : TextView(context), Themed {
                 Tone.NORMAL -> theme.textSecondary
                 Tone.ACCENT -> theme.accent
                 Tone.DANGER -> theme.danger
+                Tone.OK -> theme.ok
             },
         )
         setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))

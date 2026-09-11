@@ -1,29 +1,33 @@
 package io.github.kasecrab.razorback.ui.settings
 
 import android.content.Context
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.R
 import io.github.kasecrab.razorback.core.KeyChecks
 import io.github.kasecrab.razorback.core.Keys
 import io.github.kasecrab.razorback.core.Secrets
-import io.github.kasecrab.razorback.provider.openrouter.AccountInfo
 import io.github.kasecrab.razorback.provider.openrouter.OpenRouterAccount
 import io.github.kasecrab.razorback.tools.search.BraveSearch
 import io.github.kasecrab.razorback.tools.search.ExaSearch
+import io.github.kasecrab.razorback.ui.core.Fonts
 import io.github.kasecrab.razorback.ui.core.Keyboard
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.Theme
+import io.github.kasecrab.razorback.ui.core.Type
+import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
+import io.github.kasecrab.razorback.ui.core.icon
 import io.github.kasecrab.razorback.ui.core.nav
 import io.github.kasecrab.razorback.ui.core.uiScope
 import io.github.kasecrab.razorback.ui.widget.ActionSheet
 import io.github.kasecrab.razorback.ui.widget.Caption
 import io.github.kasecrab.razorback.ui.widget.Chip
-import io.github.kasecrab.razorback.ui.widget.IconButton
 import io.github.kasecrab.razorback.ui.widget.SectionHeader
 import io.github.kasecrab.razorback.ui.widget.TextField
 import io.github.kasecrab.razorback.ui.widget.TopBar
@@ -32,14 +36,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.DateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
- * One field per vendor key. Typing only stages a key: Save asks each changed key's vendor
- * about it first and writes it only once accepted, so a key that does not work is never
- * kept; a key that was accepted keeps its date until someone edits it or asks for a fresh check.
+ * One field per vendor key, the two the app runs on first and the search keys after. Typing
+ * only stages a key: Save asks each changed key's vendor about it and writes it only once
+ * accepted, so a key that does not work is never kept. A key that was accepted shows a
+ * green tick and nothing else, until someone edits it.
  */
 class ProvidersScreen(context: Context) : Screen(context) {
 
@@ -51,6 +53,8 @@ class ProvidersScreen(context: Context) : Screen(context) {
     private val saveBar = LinearLayout(context)
     private val saveEdge = View(context)
     private val rows = ArrayList<KeyRow>(4)
+    private val firstLabel = TextView(context)
+    private val firstChips = ArrayList<Pair<String, Chip>>(2)
 
     init {
         val column = LinearLayout(context)
@@ -67,11 +71,9 @@ class ProvidersScreen(context: Context) : Screen(context) {
         addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         buildSaveBar()
 
-        header(R.string.openrouter)
-        rows.add(KeyRow(Secrets.OPENROUTER, R.string.key_hint_openrouter, null) { describe(OpenRouterAccount.fetch(it)) })
-
-        header(R.string.deepgram)
-        rows.add(KeyRow(Secrets.DEEPGRAM, R.string.key_hint_generic, null) { DeepgramAccount.check(it) })
+        header(R.string.providers_core)
+        rows.add(KeyRow(Secrets.OPENROUTER, R.string.openrouter, R.string.key_hint_openrouter) { OpenRouterAccount.fetch(it) })
+        rows.add(KeyRow(Secrets.DEEPGRAM, R.string.deepgram, R.string.key_hint_generic) { DeepgramAccount.check(it) })
 
         header(R.string.web_search)
         val toggle = SwitchRow(context)
@@ -79,12 +81,9 @@ class ProvidersScreen(context: Context) : Screen(context) {
             prefs[Keys.WEB_SEARCH] = it
         }
         list.addView(toggle, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        caption(R.string.search_default_hint)
-        caption(R.string.brave)
-        rows.add(KeyRow(Secrets.BRAVE, R.string.key_hint_generic, Secrets.BRAVE) { searched(BraveSearch.search(it, "razorback", 1).size) })
-        caption(R.string.exa)
-        rows.add(KeyRow(Secrets.EXA, R.string.key_hint_generic, Secrets.EXA) { searched(ExaSearch.search(it, "razorback", 1).size) })
-        syncDefault()
+        rows.add(KeyRow(Secrets.BRAVE, R.string.brave, R.string.key_hint_generic) { BraveSearch.search(it, "razorback", 1) })
+        rows.add(KeyRow(Secrets.EXA, R.string.exa, R.string.key_hint_generic) { ExaSearch.search(it, "razorback", 1) })
+        buildFirstChoice()
         syncSaveBar()
     }
 
@@ -109,6 +108,9 @@ class ProvidersScreen(context: Context) : Screen(context) {
         super.onThemeChanged(theme)
         saveBar.setBackgroundColor(theme.surface)
         saveEdge.setBackgroundColor(theme.outline)
+        firstLabel.setTextColor(theme.textPrimary)
+        firstLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
+        for (r in rows) r.render()
     }
 
     private fun buildSaveBar() {
@@ -138,6 +140,38 @@ class ProvidersScreen(context: Context) : Screen(context) {
         addView(saveBar, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
     }
 
+    /** Which search engine is asked first: one row, one chip per engine, the chosen one lit. */
+    private fun buildFirstChoice() {
+        val row = LinearLayout(context)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(dp(16), dp(14), dp(16), dp(4))
+        firstLabel.typeface = Fonts.regular
+        firstLabel.setText(R.string.search_first)
+        row.addView(firstLabel, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        for ((vendor, label) in listOf(Secrets.BRAVE to R.string.brave_short, Secrets.EXA to R.string.exa)) {
+            val chip = Chip(context)
+            chip.setText(label)
+            chip.setOnClickListener {
+                prefs[Keys.SEARCH_PROVIDER] = vendor
+                syncFirst()
+            }
+            row.addView(chip, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, dp(32)).apply { marginStart = dp(8) })
+            firstChips.add(vendor to chip)
+        }
+        list.addView(row, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        val hint = Caption(context)
+        hint.setText(R.string.search_first_hint)
+        hint.setPadding(dp(16), 0, dp(16), dp(12))
+        list.addView(hint, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        syncFirst()
+    }
+
+    private fun syncFirst() {
+        val chosen = prefs[Keys.SEARCH_PROVIDER]
+        for ((vendor, chip) in firstChips) chip.active = vendor == chosen
+    }
+
     /** Every key that changed is checked with its vendor and written only if accepted. */
     private fun saveAll() {
         Keyboard.hideAll(context)
@@ -158,59 +192,30 @@ class ProvidersScreen(context: Context) : Screen(context) {
         list.setPadding(0, 0, 0, if (dirty) dp(96) else dp(32))
     }
 
-    private fun syncDefault() {
-        val chosen = prefs[Keys.SEARCH_PROVIDER]
-        for (r in rows) r.syncDefault(chosen)
-    }
-
     private fun header(res: Int) {
         val h = SectionHeader(context)
         h.setText(res)
         list.addView(h, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
-    private fun caption(res: Int) {
-        val c = Caption(context)
-        c.setText(res)
-        c.setPadding(dp(16), dp(8), dp(16), dp(6))
-        list.addView(c, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-    }
-
-    private fun describe(a: AccountInfo): String {
-        val parts = ArrayList<String>(5)
-        a.label?.let { parts.add(it) }
-        parts.add("today " + money(a.usageDaily))
-        parts.add("month " + money(a.usageMonthly))
-        a.balance?.let { parts.add("balance " + money(it)) }
-        a.limitRemaining?.let { parts.add("limit left " + money(it)) }
-        if (a.isFreeTier) parts.add("free tier")
-        return parts.joinToString(" · ")
-    }
-
-    private fun searched(hits: Int): String = context.getString(R.string.key_ok_search, hits)
-
-    private fun money(v: Double): String = String.format(Locale.US, "$%.2f", v)
-
-    private fun stamp(at: Long): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(at))
-
     /**
-     * One vendor: the field, what the field is next to do, and what its vendor last said.
-     * [probe] runs off the main thread and returns the line to show when the key is accepted.
+     * One vendor: its name with the key's standing beside it, the field under them, and the
+     * reason under that when the vendor said no. [probe] runs off the main thread and
+     * throws when the key is refused.
      */
     private inner class KeyRow(
         private val name: String,
+        title: Int,
         hint: Int,
-        private val vendor: String?,
-        private val probe: (String) -> String,
+        private val probe: (String) -> Unit,
     ) {
-        private val input = TextField(context)
+        private val label = TextView(context)
         private val status = Caption(context)
-        private val prefer = Chip(context)
-        private val verify = Chip(context)
-        private val refresh = IconButton(context)
+        private val check = Chip(context)
+        private val input = TextField(context)
+        private val reason = Caption(context)
         private var job: Job? = null
         private var busy = false
-        private var detail: String? = null
         private var failure: String? = null
 
         private val typed: String get() = input.text.trim()
@@ -219,6 +224,20 @@ class ProvidersScreen(context: Context) : Screen(context) {
         val dirty: Boolean get() = typed != stored
 
         init {
+            val head = LinearLayout(context)
+            head.orientation = LinearLayout.HORIZONTAL
+            head.gravity = Gravity.CENTER_VERTICAL
+            head.setPadding(dp(16), dp(12), dp(16), dp(6))
+            label.typeface = Fonts.regular
+            label.setText(title)
+            head.addView(label, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            status.compoundDrawablePadding = dp(4)
+            head.addView(status, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+            check.setText(R.string.check_key)
+            check.setOnClickListener { check() }
+            head.addView(check, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, dp(32)))
+            list.addView(head, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
             input.secret = true
             input.setHint(hint)
             input.text = stored
@@ -229,31 +248,15 @@ class ProvidersScreen(context: Context) : Screen(context) {
             }
             list.addView(
                 input,
-                LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { marginStart = dp(16); marginEnd = dp(16) },
+                LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                    marginStart = dp(16)
+                    marginEnd = dp(16)
+                    bottomMargin = dp(4)
+                },
             )
-
-            val actions = LinearLayout(context)
-            actions.orientation = LinearLayout.HORIZONTAL
-            actions.gravity = Gravity.CENTER_VERTICAL
-            actions.setPadding(dp(16), dp(6), dp(10), 0)
-            actions.addView(status, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
-            if (vendor != null) {
-                prefer.style = Chip.Style.PLAIN
-                prefer.setText(R.string.search_default)
-                prefer.setOnClickListener {
-                    prefs[Keys.SEARCH_PROVIDER] = vendor
-                    syncDefault()
-                }
-                actions.addView(prefer, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, dp(32)))
-            }
-            verify.setText(R.string.verify)
-            verify.setOnClickListener { check() }
-            actions.addView(verify, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, dp(32)))
-            refresh.iconRes = R.drawable.ic_refresh
-            refresh.contentDescription = context.getString(R.string.cd_recheck)
-            refresh.setOnClickListener { check() }
-            actions.addView(refresh, LinearLayout.LayoutParams(dp(40), dp(40)))
-            list.addView(actions, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+            reason.tone = Caption.Tone.DANGER
+            reason.setPadding(dp(16), dp(4), dp(16), dp(4))
+            list.addView(reason, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
             render()
         }
 
@@ -267,11 +270,25 @@ class ProvidersScreen(context: Context) : Screen(context) {
             if (key.isEmpty()) {
                 secrets.put(name, null)
                 checks.forget(name)
-                detail = null
                 failure = null
                 render()
                 return
             }
+            ask(key) {
+                secrets.put(name, key)
+                checks.accepted(name, key)
+                input.text = key
+            }
+        }
+
+        /** A saved key nobody has checked yet is put to its vendor without being rewritten. */
+        fun check() {
+            val key = typed
+            if (key.isEmpty() || dirty) return
+            ask(key) { checks.accepted(name, key) }
+        }
+
+        private fun ask(key: String, accepted: () -> Unit) {
             job?.cancel()
             busy = true
             failure = null
@@ -279,13 +296,8 @@ class ProvidersScreen(context: Context) : Screen(context) {
             job = context.uiScope.launch {
                 val result = runCatching { withContext(Dispatchers.IO) { probe(key) } }
                 busy = false
-                result.onSuccess {
-                    secrets.put(name, key)
-                    checks.accepted(name, key)
-                    detail = it
-                    input.text = key
-                }
-                result.onFailure { failure = context.getString(R.string.key_rejected, reason(it)) }
+                result.onSuccess { accepted() }
+                result.onFailure { failure = reason(it) }
                 render()
                 syncSaveBar()
             }
@@ -310,50 +322,38 @@ class ProvidersScreen(context: Context) : Screen(context) {
             render()
         }
 
-        fun check() {
-            val key = typed
-            if (key.isEmpty()) return
-            job?.cancel()
-            busy = true
-            failure = null
-            render()
-            job = context.uiScope.launch {
-                val result = runCatching { withContext(Dispatchers.IO) { probe(key) } }
-                busy = false
-                result.onSuccess {
-                    detail = it
-                    checks.accepted(name, key)
-                }
-                result.onFailure { failure = it.message ?: it.javaClass.simpleName }
-                render()
-            }
-        }
-
-        fun syncDefault(chosen: String) {
-            if (vendor != null) prefer.active = vendor == chosen
-        }
-
         fun cancel() {
             job?.cancel()
         }
 
-        private fun render() {
+        fun render() {
+            val theme = context.appTheme
             val key = typed
-            val at = if (dirty) null else checks.verifiedAt(name, key)
+            val verified = !dirty && checks.verifiedAt(name, key) != null
             val failed = failure
-            status.tone = if (failed != null) Caption.Tone.DANGER else Caption.Tone.NORMAL
+            label.setTextColor(theme.textPrimary)
+            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
+            val unchecked = !busy && !dirty && key.isNotEmpty() && !verified
+            check.visibility = if (unchecked) View.VISIBLE else View.GONE
+            status.visibility = if (unchecked) View.GONE else View.VISIBLE
+            status.tone = when {
+                busy -> Caption.Tone.NORMAL
+                failed != null -> Caption.Tone.DANGER
+                dirty -> Caption.Tone.ACCENT
+                verified -> Caption.Tone.OK
+                else -> Caption.Tone.NORMAL
+            }
             status.text = when {
                 busy -> context.getString(R.string.verifying)
-                failed != null && dirty -> failed
+                failed != null -> context.getString(R.string.key_rejected)
                 dirty -> context.getString(R.string.key_unsaved)
                 key.isEmpty() -> context.getString(R.string.key_none)
-                at == null -> context.getString(R.string.key_unchecked)
-                detail != null -> context.getString(R.string.key_verified_detail, stamp(at), detail)
-                else -> context.getString(R.string.key_verified, stamp(at))
+                else -> context.getString(R.string.key_verified)
             }
-            val settled = !busy && !dirty && key.isNotEmpty()
-            verify.visibility = if (settled && at == null) View.VISIBLE else View.GONE
-            refresh.visibility = if (settled && at != null) View.VISIBLE else View.GONE
+            val tick = if (!busy && !dirty && verified) context.icon(R.drawable.ic_check, theme.ok).also { it.setBounds(0, 0, dp(16), dp(16)) } else null
+            status.setCompoundDrawablesRelative(tick, null, null, null)
+            reason.text = failed
+            reason.visibility = if (failed != null) View.VISIBLE else View.GONE
         }
     }
 }
