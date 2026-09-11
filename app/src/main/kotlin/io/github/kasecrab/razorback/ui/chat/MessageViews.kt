@@ -84,6 +84,7 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
     private val body = MessageView(context)
     private val pictures = ImageGridView(context)
     private val note = TextView(context)
+    private val dots = WaitingDots(context)
     private val usage = TextView(context)
     private var message: Message? = null
     var onMenu: (() -> Unit)? = null
@@ -120,6 +121,8 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
         note.typeface = Fonts.regular
         note.visibility = View.GONE
         addView(note, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+        dots.visibility = View.GONE
+        addView(dots, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
         onThemeChanged(context.appTheme)
     }
 
@@ -130,14 +133,15 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
         thinking.bind(m)
         body.render(m.content)
         pictures.set(m.images.filter { !it.startsWith("data:") })
+        val waiting = m.status == MessageStatus.STREAMING && m.content.isEmpty() && m.reasoning.isNullOrEmpty()
         val noteText = when (m.status) {
             MessageStatus.ERROR -> m.error ?: context.getString(R.string.went_wrong)
             MessageStatus.CUT -> m.error ?: context.getString(R.string.cut_short)
-            MessageStatus.STREAMING -> if (m.content.isEmpty() && m.reasoning.isNullOrEmpty()) "…" else null
-            MessageStatus.COMPLETE -> null
+            MessageStatus.STREAMING, MessageStatus.COMPLETE -> null
         }
         note.text = noteText
         note.visibility = if (noteText == null) View.GONE else View.VISIBLE
+        dots.visibility = if (waiting) View.VISIBLE else View.GONE
         note.setTextColor(if (m.status == MessageStatus.ERROR) theme.danger else theme.textTertiary)
         usage.text = usageLine(m)
         if (m.status == MessageStatus.STREAMING) usage.visibility = View.GONE
@@ -147,7 +151,7 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
     fun bindStream(m: Message) {
         thinking.bind(m)
         body.render(m.content)
-        if (note.visibility == View.VISIBLE && (m.content.isNotEmpty() || !m.reasoning.isNullOrEmpty())) note.visibility = View.GONE
+        if (dots.visibility == View.VISIBLE && (m.content.isNotEmpty() || !m.reasoning.isNullOrEmpty())) dots.visibility = View.GONE
     }
 
     private fun usageLine(m: Message): String {
@@ -172,6 +176,7 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
         body.onThemeChanged(theme)
         pictures.onThemeChanged(theme)
         note.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
+        dots.onThemeChanged(theme)
     }
 
     private companion object {
