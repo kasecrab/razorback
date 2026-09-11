@@ -17,12 +17,24 @@ object KeyNeeded {
         return false
     }
 
+    /** The saved key was turned away: say so and lead to the field, instead of a bare error line. */
+    fun rejected(context: Context, name: String) {
+        val vendor = vendorName(name)
+        ActionSheet(context)
+            .header(context.getString(R.string.key_rejected_title, vendor), context.getString(R.string.key_rejected_text, vendor))
+            .add(R.drawable.ic_key, context.getString(R.string.open_providers)) { context.nav.push(ProvidersScreen(context)) }
+            .add(R.drawable.ic_close, context.getString(R.string.not_now)) {}
+            .show()
+    }
+
+    private fun vendorName(name: String): String = when (name) {
+        Secrets.OPENROUTER -> "OpenRouter"
+        Secrets.DEEPGRAM -> "Deepgram"
+        else -> name
+    }
+
     fun explain(context: Context, name: String) {
-        val vendor = when (name) {
-            Secrets.OPENROUTER -> "OpenRouter"
-            Secrets.DEEPGRAM -> "Deepgram"
-            else -> name
-        }
+        val vendor = vendorName(name)
         val purpose = context.getString(if (name == Secrets.DEEPGRAM) R.string.key_needed_deepgram else R.string.key_needed_openrouter)
         ActionSheet(context)
             .header(context.getString(R.string.key_needed_title, vendor), context.getString(R.string.key_needed_text, purpose, vendor))

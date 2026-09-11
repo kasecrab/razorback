@@ -212,6 +212,11 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     override fun onSentence(spoken: String) = transcript.replySentence(spoken)
 
     override fun onError(message: String) {
+        if (message == io.github.kasecrab.razorback.voice.DeepgramAccount.KEY_REFUSED) {
+            context.nav.pop()
+            io.github.kasecrab.razorback.ui.core.KeyNeeded.rejected(context, io.github.kasecrab.razorback.core.Secrets.DEEPGRAM)
+            return
+        }
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 }

@@ -157,7 +157,7 @@ class DictationLink(
         if (error is HandshakeException && (error.status == 401 || error.status == 403)) {
             armed = false
             state = State.FAILED
-            main.post { listener?.onError("Deepgram refused the key") }
+            main.post { listener?.onError(DeepgramAccount.KEY_REFUSED) }
             return
         }
         Log.w("dictation socket dropped: ${error?.message ?: "closed"}")

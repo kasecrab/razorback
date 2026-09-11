@@ -1,5 +1,6 @@
 package io.github.kasecrab.razorback.chat
 
+import io.github.kasecrab.razorback.core.HttpException
 import io.github.kasecrab.razorback.core.Log
 import io.github.kasecrab.razorback.core.Net
 import io.github.kasecrab.razorback.model.Usage
@@ -22,6 +23,10 @@ class TurnRunner(
     private val onDelta: (text: String?, reasoning: String?) -> Unit,
 ) {
     class Outcome(val acc: Accumulator, val error: String?, val cancelled: Boolean)
+
+    companion object {
+        const val KEY_REFUSED = "OpenRouter refused the key. Check it under Settings › Providers."
+    }
 
     fun run(request: ChatRequest): Outcome {
         val acc = Accumulator()
@@ -52,6 +57,7 @@ class TurnRunner(
             } catch (e: Exception) {
                 if (handle.cancelled) return Outcome(acc, null, cancelled = true)
                 if (!online()) return Outcome(acc, Net.OFFLINE, cancelled = false)
+                if (e is HttpException && (e.status == 401 || e.status == 403)) return Outcome(acc, KEY_REFUSED, cancelled = false)
                 if (!gotAny && attempt < RetryPolicy.MAX_ATTEMPTS - 1 && RetryPolicy.isTransient(e)) {
                     val wait = RetryPolicy.backoffMs(attempt)
                     Log.w("request failed, retrying in ${wait}ms: ${e.message}")

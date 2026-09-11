@@ -10,6 +10,9 @@ import java.util.Locale
 
 /** Proves a Deepgram key works and, when the key is allowed to see it, reads the balance. */
 object DeepgramAccount {
+    /** What every Deepgram link reports when the service turns the key away. */
+    const val KEY_REFUSED = "Deepgram refused the key"
+
 
     fun check(key: String): String {
         val headers = mapOf("Authorization" to "Token $key")

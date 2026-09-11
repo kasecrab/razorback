@@ -121,7 +121,7 @@ class NovaEars(
         if (!armed) return
         if (error is HandshakeException && (error.status == 401 || error.status == 403)) {
             armed = false
-            main.post { listener?.onError("Deepgram refused the key") }
+            main.post { listener?.onError(DeepgramAccount.KEY_REFUSED) }
             return
         }
         Log.w("nova socket dropped: ${error?.message ?: "closed"}")

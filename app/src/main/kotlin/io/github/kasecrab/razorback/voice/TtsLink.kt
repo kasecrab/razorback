@@ -185,7 +185,7 @@ class TtsLink(
         if (!armed) return
         if (error is HandshakeException && (error.status == 401 || error.status == 403)) {
             armed = false
-            main.post { listener?.onError("Deepgram refused the key") }
+            main.post { listener?.onError(DeepgramAccount.KEY_REFUSED) }
             return
         }
         if (error is HandshakeException && error.status == 400 && speedSent && !speedRefused) {

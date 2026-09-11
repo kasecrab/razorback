@@ -137,6 +137,11 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
     }
 
     override fun onError(message: String) {
+        if (message == io.github.kasecrab.razorback.voice.DeepgramAccount.KEY_REFUSED) {
+            stop()
+            io.github.kasecrab.razorback.ui.core.KeyNeeded.rejected(context, Secrets.DEEPGRAM)
+            return
+        }
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         stop()
     }
