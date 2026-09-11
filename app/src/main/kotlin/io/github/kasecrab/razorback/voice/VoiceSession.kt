@@ -536,7 +536,7 @@ class VoiceSession(
 
     /** Milliseconds of speech queued on the speaker and not yet heard, at the pace it is played. */
     private fun audioAheadMs(): Long {
-        val bytes = playback.enqueuedBytes.get() - playback.playedBytes()
+        val bytes = maxOf(0L, playback.enqueuedBytes.get() - playback.playedBytes())
         return (bytes / Playback.BYTES_PER_MS / Speed.stretch(prefs[Keys.VOICE_SPEED])).toLong()
     }
 

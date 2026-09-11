@@ -14,8 +14,11 @@ import kotlin.math.sqrt
 /**
  * Speaker output for 24 kHz mono PCM16 arriving in bursts. Chunks queue in a ring that
  * grows when a long reply arrives faster than it can be played, because dropping any of
- * it would drop words. The play thread waits for a small cushion before starting so the
- * first words do not stutter. [clear] drops everything at once for barge-in.
+ * it would drop words. The play thread waits for a cushion before starting so the first
+ * words do not stutter; on a connection where the audio then trickles in late, every
+ * time the queue runs dry the cushion doubles before playing resumes, trading many short
+ * stutters for one pause, and it eases back after replies that played clean.
+ * [clear] drops everything at once for barge-in.
  */
 class Playback(private val onDrained: () -> Unit) {
 
@@ -40,6 +43,10 @@ class Playback(private val onDrained: () -> Unit) {
     /** Times the speaker went quiet mid-speech waiting for audio; a diagnostic. */
     @Volatile var underruns = 0
         private set
+
+    /** Audio held back before playing starts or resumes; grows with the jitter seen. */
+    @Volatile private var cushionMs = CUSHION_MS
+    private var underrunsThisRun = 0
 
     /** [stretch] plays the audio that many times faster at the same pitch; 1 leaves it as sent. */
     fun start(stretch: Float = 1f) {
@@ -168,6 +175,7 @@ class Playback(private val onDrained: () -> Unit) {
             size = 0
             endMarked = false
             generation++
+            underrunsThisRun = 0
             lock.notifyAll()
         }
         track?.let {
@@ -226,7 +234,14 @@ class Playback(private val onDrained: () -> Unit) {
                 // speaker will go quiet until it lands. Counted so a choppy reply can be diagnosed.
                 val starved = playing && size == 0 && !endMarked
                 val starvedAt = if (starved) System.nanoTime() else 0L
-                while (running && (size == 0 || (!playing && size < BYTES_PER_MS * PREBUFFER_MS && !endMarked))) {
+                if (starved) {
+                    underruns++
+                    underrunsThisRun++
+                    cushionMs = minOf(cushionMs * 2, CUSHION_MAX_MS)
+                }
+                // Once dry, wait for the cushion again rather than playing each chunk as it lands.
+                val need = if (starved || !playing) BYTES_PER_MS * cushionMs else 1
+                while (running && (size == 0 || (size < need && !endMarked))) {
                     if (size == 0 && endMarked && playing) {
                         drained = true
                         endMarked = false
@@ -235,8 +250,7 @@ class Playback(private val onDrained: () -> Unit) {
                     lock.wait(200)
                 }
                 if (starved && running && !drained) {
-                    underruns++
-                    Log.d { "playback: queue ran dry for ${(System.nanoTime() - starvedAt) / 1_000_000} ms" }
+                    Log.d { "playback: queue ran dry for ${(System.nanoTime() - starvedAt) / 1_000_000} ms, cushion now $cushionMs ms" }
                 }
                 if (!running) return
                 gen = generation
@@ -254,6 +268,9 @@ class Playback(private val onDrained: () -> Unit) {
                 waitForTrack(t)
                 playing = false
                 level.set(0)
+                // A reply that played clean is a sign the connection has settled.
+                if (underrunsThisRun == 0) cushionMs = maxOf(CUSHION_MS, cushionMs / 2)
+                underrunsThisRun = 0
                 onDrained()
                 continue
             }
@@ -301,7 +318,9 @@ class Playback(private val onDrained: () -> Unit) {
     companion object {
         const val SAMPLE_RATE = 24000
         const val BYTES_PER_MS = SAMPLE_RATE * 2 / 1000
-        const val PREBUFFER_MS = 120
+        /** The cushion to start with; the first words wait this long at most on a good connection. */
+        const val CUSHION_MS = 200
+        const val CUSHION_MAX_MS = 2400
         const val RING_BYTES = 512 * 1024
         /** About six minutes of speech; a reply longer than that is not one anyone waits through. */
         const val MAX_RING_BYTES = 16 * 1024 * 1024
