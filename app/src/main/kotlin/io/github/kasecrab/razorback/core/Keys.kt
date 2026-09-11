@@ -34,7 +34,8 @@ object Keys {
     /** Spoken replies want to start fast; deep reasoning is opt-in here. */
     val VOICE_THINKING = EnumKey("voice.thinking", ThinkingLevel.OFF, ThinkingLevel.entries.toTypedArray())
     /** Empty means the chat model; a fast small model makes spoken replies start sooner. */
-    val VOICE_MODEL = Key("voice.model", "")
+    /** The model voice mode talks to; empty means the same as the chat. */
+    val VOICE_MODEL = Key("voice.model", "openai/gpt-oss-120b")
     /** How the model should talk in voice mode; empty means the built-in text. */
     val VOICE_PROMPT = Key("voice.prompt", "")
 
