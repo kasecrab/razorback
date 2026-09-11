@@ -40,6 +40,7 @@ class ChatEngine(
     private val store: ChatStore,
     private val catalog: ModelCatalog,
     private val tools: ToolRegistry,
+    private val namer: Namer,
 ) {
 
     interface Listener {
@@ -178,10 +179,12 @@ class ChatEngine(
         var conv = conversation
         if (conv == null) {
             val now = System.currentTimeMillis()
-            conv = Conversation(Ids.next(), titleFrom(text), model, now, now)
+            conv = Conversation(Ids.next(), UNTITLED, model, now, now)
             conversation = conv
             if (persist) persist("conversation") { store.insertConversation(conv) }
             for (l in listeners) l.onConversationChanged()
+            // A temporary chat is never named: nothing about it leaves the phone beyond the reply itself.
+            if (persist) nameInBackground(conv, text)
         }
         messages.add(user)
         val index = messages.size - 1
@@ -240,6 +243,14 @@ class ChatEngine(
         if (conv.id == conversation?.id) newConversation()
         persist("delete conversation") { store.deleteConversation(conv.id) }
         for (l in listeners) l.onConversationsChanged()
+    }
+
+    /** A small model names the chat from what was first said; the first words stand in only if it cannot. */
+    private fun nameInBackground(conv: Conversation, text: String) {
+        io.launch {
+            val title = namer.name(text) ?: titleFrom(text)
+            main.post { if (conv.title == UNTITLED) rename(conv, title) }
+        }
     }
 
     private fun titleFrom(text: String): String {
@@ -442,8 +453,10 @@ class ChatEngine(
         }
     }
 
-    private companion object {
-        const val THINKING_FOR = "model.thinking."
+    companion object {
+        /** The name a chat carries until its own arrives. */
+        const val UNTITLED = "New chat"
+        private const val THINKING_FOR = "model.thinking."
         const val FLUSH_MS = 33L
         const val PERSIST_MS = 1000L
         const val PERSIST_CHARS = 2048
