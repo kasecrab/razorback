@@ -106,14 +106,26 @@ class ChatEngine(
      */
     private val disk = CoroutineScope(SupervisorJob() + store.writer)
 
-    private fun persist(what: String, block: suspend () -> Unit) {
+    private fun persist(what: String, block: suspend () -> Unit) = persist(what, block, null)
+
+    /**
+     * [then] runs on the main thread once the write is on disk, or has failed. Anything that
+     * reads the database back must wait for it: reads run on their own threads, so a list
+     * reloaded the moment a write is queued still shows the row that write removes.
+     */
+    private fun persist(what: String, block: suspend () -> Unit, then: (() -> Unit)?) {
         disk.launch {
             try {
                 block()
             } catch (e: Exception) {
                 Log.e("could not save $what", e)
             }
+            if (then != null) main.post(then)
         }
+    }
+
+    private fun notifyConversations() {
+        for (l in listeners) l.onConversationsChanged()
     }
     private val ui = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var handle: StreamHandle? = null
@@ -226,23 +238,18 @@ class ChatEngine(
 
     fun rename(conv: Conversation, title: String) {
         conv.title = title
-        persist("rename") { store.updateConversation(conv) }
-        for (l in listeners) {
-            l.onConversationsChanged()
-            if (conv.id == conversation?.id) l.onConversationChanged()
-        }
+        if (conv.id == conversation?.id) for (l in listeners) l.onConversationChanged()
+        persist("rename", { store.updateConversation(conv) }) { notifyConversations() }
     }
 
     fun setPinned(conv: Conversation, pinned: Boolean) {
         conv.pinned = pinned
-        persist("pin") { store.updateConversation(conv) }
-        for (l in listeners) l.onConversationsChanged()
+        persist("pin", { store.updateConversation(conv) }) { notifyConversations() }
     }
 
     fun deleteConversation(conv: Conversation) {
         if (conv.id == conversation?.id) newConversation()
-        persist("delete conversation") { store.deleteConversation(conv.id) }
-        for (l in listeners) l.onConversationsChanged()
+        persist("delete conversation", { store.deleteConversation(conv.id) }) { notifyConversations() }
     }
 
     /** A small model names the chat from what was first said; the first words stand in only if it cannot. */
@@ -444,12 +451,11 @@ class ChatEngine(
             conv.model = reply.model
             val latency = reply.finishedAt!! - started
             val ok = reply.status != MessageStatus.ERROR
-            persist("reply") {
+            persist("reply", {
                 store.updateMessage(reply)
                 store.updateConversation(conv)
                 if (reply.usage != null || !ok) store.logUsage(conv.id, reply, latency, ok, acc.generationId, round)
-            }
-            for (l in listeners) l.onConversationsChanged()
+            }) { notifyConversations() }
         }
     }
 
