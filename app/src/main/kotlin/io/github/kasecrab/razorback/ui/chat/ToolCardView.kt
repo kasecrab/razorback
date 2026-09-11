@@ -71,8 +71,22 @@ class ToolCardView(context: Context) : LinearLayout(context), Themed {
 
     fun bind(m: Message) {
         val theme = context.appTheme
-        if (m.role == Role.ASSISTANT) {
-            val call = m.toolCalls.firstOrNull()
+        val call = m.toolCalls.firstOrNull()
+        val other = m.toolName ?: call?.name?.takeIf { it != "web_search" }
+        icon.setImageDrawable(context.icon(if (other != null) R.drawable.ic_wrench else R.drawable.ic_globe, theme.textSecondary))
+        if (other != null) {
+            // A tool run somewhere else: its name and what it was given, the result folded beneath.
+            if (m.role == Role.ASSISTANT) {
+                val gist = call?.let { gistOf(it.arguments) }
+                title.text = if (gist != null) "$other: $gist" else other
+                body.text = ""
+                chevron.visibility = View.GONE
+            } else {
+                title.text = if (m.status == MessageStatus.ERROR) context.getString(R.string.tool_failed, other) else context.getString(R.string.tool_ran, other)
+                body.text = m.content.take(MAX_RESULT)
+                chevron.visibility = View.VISIBLE
+            }
+        } else if (m.role == Role.ASSISTANT) {
             val query = call?.let { queryOf(it.arguments) }
             title.text = if (query != null) context.getString(R.string.searching) + ": " + query else context.getString(R.string.searching)
             body.text = ""
@@ -92,6 +106,26 @@ class ToolCardView(context: Context) : LinearLayout(context), Themed {
         JSONObject(arguments).str("query")
     } catch (_: JSONException) {
         null
+    }
+
+    /** The first string argument, which for most tools is the thing that matters: a command, a path, a query. */
+    private fun gistOf(arguments: String): String? = try {
+        val o = JSONObject(arguments)
+        var first: String? = null
+        for (k in o.keys()) {
+            val v = o.opt(k)
+            if (v is String && v.isNotBlank()) {
+                first = v
+                break
+            }
+        }
+        first?.lineSequence()?.firstOrNull()?.take(120)
+    } catch (_: JSONException) {
+        null
+    }
+
+    private companion object {
+        const val MAX_RESULT = 4000
     }
 
     private fun links(text: String, theme: Theme): CharSequence {

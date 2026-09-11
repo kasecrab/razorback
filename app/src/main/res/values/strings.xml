@@ -271,6 +271,16 @@
     <string name="remote_forget">Forget this machine</string>
     <string name="remote_bad_code">That is not a pairing code</string>
     <string name="remote_bad_url">The relay has to be an https address</string>
+    <string name="remote_sessions">Remote sessions</string>
+    <string name="remote_new_session">New session</string>
+    <string name="remote_new_dir">Directory on %s</string>
+    <string name="remote_offline">Not connected</string>
+    <string name="remote_nothing_open">Nothing open</string>
+    <string name="remote_not_running">%s · not running</string>
+    <string name="remote_working">working</string>
+    <string name="remote_starting">Starting…</string>
+    <string name="tool_ran">Ran %s</string>
+    <string name="tool_failed">%s failed</string>
     <string name="notif_watching">Watching a session</string>
     <string name="notif_asking">A machine is waiting on you</string>
 </resources>

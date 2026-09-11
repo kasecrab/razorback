@@ -40,4 +40,6 @@ class Message(
     var firstTokenAt: Long? = null,
     /** When the answer began after the reasoning, to show how long the model thought. */
     var reasoningEndedAt: Long? = null,
+    /** For a tool result from another machine: which tool ran, so the card can say. */
+    var toolName: String? = null,
 )

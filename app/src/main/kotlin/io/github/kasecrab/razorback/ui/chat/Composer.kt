@@ -43,6 +43,21 @@ class Composer(context: Context) : LinearLayout(context), Themed {
     var onStop: (() -> Unit)? = null
     var onVoiceMode: (() -> Unit)? = null
 
+    /** Whether an empty field offers voice mode; off, the send button just waits for text. */
+    var canVoice: Boolean = true
+        set(value) {
+            field = value
+            updatePrimary()
+        }
+
+    /** Only the field, the microphone and send: for a conversation that lives elsewhere. */
+    fun plain() {
+        attach.visibility = View.GONE
+        thinkingChip.visibility = View.GONE
+        temporaryChip.visibility = View.GONE
+        canVoice = false
+    }
+
     /** True while a reply streams: the primary button becomes stop. */
     var streaming: Boolean = false
         set(value) {
@@ -133,6 +148,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
                     onStop?.invoke()
                 }
                 input.text.isBlank() && strip.items.isEmpty() -> {
+                    if (!canVoice) return@setOnClickListener
                     Haptics.confirm()
                     onVoiceMode?.invoke()
                 }
@@ -178,16 +194,17 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         val hasText = input.text.isNotBlank() || strip.items.isNotEmpty()
         primary.iconRes = when {
             streaming -> R.drawable.ic_stop
-            hasText -> R.drawable.ic_arrow_up
+            hasText || !canVoice -> R.drawable.ic_arrow_up
             else -> R.drawable.ic_waveform
         }
         primary.contentDescription = context.getString(
             when {
                 streaming -> R.string.cd_stop
-                hasText -> R.string.cd_send
+                hasText || !canVoice -> R.string.cd_send
                 else -> R.string.cd_voice_mode
             },
         )
+        primary.isEnabled = streaming || hasText || canVoice
     }
 
     override fun onThemeChanged(theme: Theme) {
