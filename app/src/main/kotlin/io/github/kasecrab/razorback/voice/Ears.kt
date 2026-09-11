@@ -24,5 +24,8 @@ interface Ears {
     /** From the audio thread; silently dropped while the socket is down. */
     fun audio(chunk: ByteArray, len: Int)
 
+    /** Keeps the stream open while no audio is being sent, as while the mic is muted. */
+    fun keepAlive() {}
+
     fun stop()
 }

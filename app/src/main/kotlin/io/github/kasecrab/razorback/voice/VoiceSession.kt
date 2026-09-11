@@ -105,6 +105,7 @@ class VoiceSession(
         // source hears more faithfully on phones whose call path narrows the sound.
         val source = if (prefs[Keys.VOICE_MIC] == "clean") MediaRecorder.AudioSource.VOICE_RECOGNITION else MediaRecorder.AudioSource.VOICE_COMMUNICATION
         mic = MicCapture(source) { buf, len -> hear(buf, len) }
+        muted = false
         echoRatio = ECHO_RATIO_FLOOR
         stt.listener = this
         tts.listener = this
@@ -135,6 +136,7 @@ class VoiceSession(
         streamDone = false
         toolRound = false
         main.removeCallbacks(slowThinking)
+        main.removeCallbacks(keepAlive)
         state = State.IDLE
     }
 
@@ -145,9 +147,29 @@ class VoiceSession(
         onTurn(Ears.Turn.END, text, -1, 1f)
     }
 
+    /**
+     * Muting lets go of the microphone altogether, so the system's mic indicator goes out
+     * and nothing is recorded; the ears are kept awake with keep-alives until it is back.
+     */
     fun setMuted(on: Boolean) {
+        if (muted == on) return
         muted = on
-        mic.muted.set(on || (state == State.SPEAKING && prefs[Keys.VOICE_MUTE_WHILE_SPEAKING]))
+        if (!isActive) return
+        main.removeCallbacks(keepAlive)
+        if (on) {
+            mic.stop()
+            main.postDelayed(keepAlive, KEEP_ALIVE_MS)
+        } else if (!mic.start()) {
+            fail("Microphone unavailable")
+        }
+    }
+
+    private val keepAlive = object : Runnable {
+        override fun run() {
+            if (!muted || !isActive) return
+            stt.keepAlive()
+            main.postDelayed(this, KEEP_ALIVE_MS)
+        }
     }
 
     private fun fail(message: String) {
@@ -499,7 +521,7 @@ class VoiceSession(
                 return@execute
             }
             replyIndex = -1
-            mic.muted.set(muted)
+            mic.muted.set(false)
             state = State.LISTENING
         }
     }
@@ -509,6 +531,8 @@ class VoiceSession(
         val CUES = listOf("Let me grab some more info on that.", "Let me look that up.", "One second, checking online.")
         val THINK_CUES = listOf("Let me think about that for a second.", "Hmm, give me a moment.", "Okay, let me think.")
         const val SLOW_THINKING_MS = 2500L
+        /** Deepgram drops a stream that goes quiet for about ten seconds; this keeps it well inside that. */
+        const val KEEP_ALIVE_MS = 5000L
         const val ECHO_RATIO_FLOOR = 0.05f
         const val CALIBRATE_MS = 600L
         const val HANGOVER_MS = 700L

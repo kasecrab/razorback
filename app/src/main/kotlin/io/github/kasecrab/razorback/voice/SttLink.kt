@@ -45,6 +45,11 @@ class SttLink(
         }
     }
 
+    override fun keepAlive() {
+        val socket = ws ?: return
+        if (socket.isOpen) socket.sendText("{\"type\":\"KeepAlive\"}")
+    }
+
     override fun stop() {
         armed = false
         val socket = ws
