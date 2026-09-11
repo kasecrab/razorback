@@ -12,7 +12,9 @@ import io.github.kasecrab.razorback.ui.core.nav
 import io.github.kasecrab.razorback.ui.orb.Orbs
 import io.github.kasecrab.razorback.ui.voice.OrbPickerSheet
 import io.github.kasecrab.razorback.ui.voice.VoicePickerSheet
+import io.github.kasecrab.razorback.voice.Speed
 import io.github.kasecrab.razorback.voice.Voices
+import io.github.kasecrab.razorback.ui.widget.Chip
 import io.github.kasecrab.razorback.ui.widget.Caption
 import io.github.kasecrab.razorback.ui.widget.ChoiceSheet
 import io.github.kasecrab.razorback.ui.widget.SectionHeader
@@ -37,6 +39,7 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     private val promptRow = NavRow(context)
     private val speedLabel = Caption(context)
     private val speed = SliderView(context)
+    private val presets = ArrayList<Chip>(PRESETS.size)
 
     init {
         val column = LinearLayout(context)
@@ -53,8 +56,8 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         list.addView(voiceRow, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         speedLabel.setPadding(dp(16), dp(8), dp(16), 0)
         list.addView(speedLabel)
-        speed.min = 0.7f
-        speed.max = 1.5f
+        speed.min = Speed.MIN
+        speed.max = Speed.MAX
         speed.step = 0.05f
         speed.value = prefs[Keys.VOICE_SPEED]
         speed.onChange = {
@@ -62,6 +65,24 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
             sync()
         }
         list.addView(speed, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { setMargins(dp(8), 0, dp(8), 0) })
+        val row = LinearLayout(context)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        row.setPadding(dp(16), 0, dp(16), dp(8))
+        for (p in PRESETS) {
+            val chip = Chip(context)
+            chip.style = Chip.Style.PLAIN
+            chip.text = if (p == p.toInt().toFloat()) "${p.toInt()}×" else "${p}×"
+            chip.setPadding(dp(10), 0, dp(10), 0)
+            chip.setOnClickListener {
+                prefs[Keys.VOICE_SPEED] = p
+                speed.value = p
+                sync()
+            }
+            presets.add(chip)
+            row.addView(chip, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { setMargins(dp(2), 0, dp(2), 0) })
+        }
+        list.addView(row, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         modelRow.setOnClickListener {
             context.nav.push(io.github.kasecrab.razorback.ui.models.ModelBrowserScreen(context, select = false) { prefs[Keys.VOICE_MODEL] = it.id })
@@ -143,7 +164,9 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
         val voice = prefs[Keys.VOICE_TTS_VOICE]
         val v = Voices.byId(voice)
         voiceRow.set(R.drawable.ic_waveform, context.getString(R.string.voice_voice), if (v != null) "${v.name} · ${v.accent} · ${v.traits.lowercase()}" else voice)
-        speedLabel.text = context.getString(R.string.voice_speed, String.format(Locale.US, "%.2f", prefs[Keys.VOICE_SPEED]))
+        val sp = prefs[Keys.VOICE_SPEED]
+        speedLabel.text = context.getString(R.string.voice_speed, String.format(Locale.US, "%.2f", sp))
+        for ((i, chip) in presets.withIndex()) chip.active = kotlin.math.abs(PRESETS[i] - sp) < 0.01f
         val stt = prefs[Keys.VOICE_STT_MODEL]
         sttRow.set(R.drawable.ic_mic, context.getString(R.string.voice_stt_model), STT_MODELS.firstOrNull { it.first == stt }?.second ?: stt)
         val turn = prefs[Keys.VOICE_TURN]
@@ -162,6 +185,7 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
     }
 
     private companion object {
+        val PRESETS = floatArrayOf(1f, 1.5f, 2f, 2.5f, 3f)
         val STT_MODELS = listOf(
             "nova-3" to "Nova-3 · hears as accurately as dictation, uses the language below",
             "flux-general-en" to "Flux · English, quickest turn-taking",

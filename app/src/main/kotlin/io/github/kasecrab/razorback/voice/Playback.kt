@@ -4,6 +4,7 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.PlaybackParams
 import android.os.Process
 import io.github.kasecrab.razorback.core.Log
 import java.util.concurrent.atomic.AtomicInteger
@@ -36,9 +37,11 @@ class Playback(private val onDrained: () -> Unit) {
 
     val isPlaying: Boolean get() = playing
 
-    fun start() {
+    /** [stretch] plays the audio that many times faster at the same pitch; 1 leaves it as sent. */
+    fun start(stretch: Float = 1f) {
         if (running) return
         val min = AudioTrack.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val stretching = stretch > 1.001f
         val t = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -55,12 +58,20 @@ class Playback(private val onDrained: () -> Unit) {
             )
             .setBufferSizeInBytes(maxOf(min, BYTES_PER_MS * 200))
             .setTransferMode(AudioTrack.MODE_STREAM)
-            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+            // The fast mixer cannot time-stretch, so a stretched track takes the ordinary path.
+            .setPerformanceMode(if (stretching) AudioTrack.PERFORMANCE_MODE_NONE else AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .build()
         if (t.state != AudioTrack.STATE_INITIALIZED) {
             Log.w("audio track failed to initialise")
             t.release()
             return
+        }
+        if (stretching) {
+            try {
+                t.playbackParams = PlaybackParams().setSpeed(stretch).setPitch(1f).setAudioFallbackMode(PlaybackParams.AUDIO_FALLBACK_MODE_DEFAULT)
+            } catch (e: IllegalArgumentException) {
+                Log.w("time stretch refused: ${e.message}")
+            }
         }
         track = t
         headBase = 0L

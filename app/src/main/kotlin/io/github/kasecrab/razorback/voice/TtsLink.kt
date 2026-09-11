@@ -105,7 +105,7 @@ class TtsLink(
         val sb = StringBuilder("wss://api.deepgram.com/v1/speak?model=")
         sb.append(URLEncoder.encode(model(), "UTF-8"))
         sb.append("&encoding=linear16&sample_rate=").append(Playback.SAMPLE_RATE)
-        val s = speed()
+        val s = Speed.server(speed())
         if (s != 1f) sb.append("&speed=").append(String.format(java.util.Locale.US, "%.2f", s))
         return sb.toString()
     }

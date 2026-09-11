@@ -109,7 +109,7 @@ class VoiceSession(
         stt.listener = this
         tts.listener = this
         focus.acquire()
-        playback.start()
+        playback.start(Speed.stretch(prefs[Keys.VOICE_SPEED]))
         stt.start()
         tts.warm()
         if (!mic.start()) {
