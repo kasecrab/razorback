@@ -115,7 +115,11 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
         composer.onSend = { text, pending -> send(text, pending) }
         composer.onAttach = { showAttachSheet() }
-        composer.onVoiceMode = { context.nav.push(io.github.kasecrab.razorback.ui.voice.VoiceScreen(context)) }
+        composer.onVoiceMode = {
+            if (io.github.kasecrab.razorback.ui.core.KeyNeeded.check(context, io.github.kasecrab.razorback.core.Secrets.DEEPGRAM)) {
+                context.nav.push(io.github.kasecrab.razorback.ui.voice.VoiceScreen(context))
+            }
+        }
         composer.onStop = { engine.stop() }
         composer.thinkingChip.setOnClickListener { ThinkingLevelSheet(context).show() }
         composer.temporaryChip.setOnClickListener {
@@ -232,6 +236,8 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         }
         val content = if (blocks.isEmpty()) text else blocks.toString() + text
         if (content.isBlank() && images.isEmpty()) return
+        // Without a key the message stays in the composer and the way to the key is shown.
+        if (!io.github.kasecrab.razorback.ui.core.KeyNeeded.check(context, io.github.kasecrab.razorback.core.Secrets.OPENROUTER)) return
         if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             context.ui().permissions.request(android.Manifest.permission.POST_NOTIFICATIONS) {}
         }

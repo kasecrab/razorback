@@ -110,6 +110,16 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
 
     private fun load(force: Boolean) {
         loadJob?.cancel()
+        if (catalog.models.isEmpty() && App.instance.secrets.get(io.github.kasecrab.razorback.core.Secrets.OPENROUTER) == null) {
+            // Nothing to fetch with: say what is missing, and let the line lead to the field.
+            status.tone = Caption.Tone.ACCENT
+            status.setText(R.string.models_need_key)
+            status.visibility = View.VISIBLE
+            status.setOnClickListener { io.github.kasecrab.razorback.ui.core.KeyNeeded.explain(context, io.github.kasecrab.razorback.core.Secrets.OPENROUTER) }
+            return
+        }
+        status.setOnClickListener(null)
+        status.isClickable = false
         if (catalog.models.isEmpty()) {
             status.tone = Caption.Tone.NORMAL
             status.setText(R.string.loading_models)

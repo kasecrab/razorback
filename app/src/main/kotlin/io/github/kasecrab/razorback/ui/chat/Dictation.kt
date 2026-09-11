@@ -60,10 +60,7 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
 
     fun start() {
         if (mic.isRunning) return
-        if (App.instance.secrets.get(Secrets.DEEPGRAM) == null) {
-            Toast.makeText(context, "Add a Deepgram key in settings", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (!io.github.kasecrab.razorback.ui.core.KeyNeeded.check(context, Secrets.DEEPGRAM)) return
         if (!io.github.kasecrab.razorback.core.Net.online(context)) {
             Toast.makeText(context, io.github.kasecrab.razorback.core.Net.OFFLINE, Toast.LENGTH_SHORT).show()
             return
