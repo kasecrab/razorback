@@ -13,6 +13,7 @@ import io.github.kasecrab.razorback.core.Log
 import java.io.File
 import java.net.URLEncoder
 import kotlin.math.sqrt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,6 +42,8 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
     private var track: AudioTrack? = null
     private var clip: Wav.Clip? = null
     private var job: Job? = null
+    /** Bumped by every play and stop, so a fetch that finishes late knows it is no longer wanted. */
+    private var generation = 0
     private val main = Handler(Looper.getMainLooper())
     private val finish = Runnable { stop() }
 
@@ -56,26 +59,30 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
             onError?.invoke("Add a Deepgram key first")
             return
         }
+        val gen = ++generation
         playing = voice.id
         onChanged?.invoke()
         warnIfMuted()
         job = scope.launch {
             val data = try {
                 withContext(Dispatchers.IO) { fetch(apiKey, voice) ?: throw IllegalStateException("No sample for this voice") }
+            } catch (e: CancellationException) {
+                // Swiped on before the sample arrived: nothing to report.
+                return@launch
             } catch (e: Exception) {
-                if (playing == voice.id) {
+                if (gen == generation) {
                     playing = null
                     onChanged?.invoke()
                     onError?.invoke(e.message ?: "Could not fetch the sample")
                 }
                 return@launch
             }
-            if (playing != voice.id) return@launch
-            start(data, voice.id)
+            if (gen == generation) start(data, gen)
         }
     }
 
     fun stop() {
+        generation++
         job?.cancel()
         job = null
         main.removeCallbacks(finish)
@@ -184,7 +191,7 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         }
     }
 
-    private fun start(c: Wav.Clip, id: String) {
+    private fun start(c: Wav.Clip, gen: Int) {
         val frames = c.frames
         if (frames == 0) {
             stop()
@@ -209,7 +216,7 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         t.setNotificationMarkerPosition(frames)
         t.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
             override fun onMarkerReached(track: AudioTrack) {
-                if (playing == id) main.post(finish)
+                if (gen == generation) main.post(finish)
             }
 
             override fun onPeriodicNotification(track: AudioTrack) {}
