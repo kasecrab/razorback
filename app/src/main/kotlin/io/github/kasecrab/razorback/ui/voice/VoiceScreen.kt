@@ -117,7 +117,13 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
             begin()
         } else {
             context.ui().permissions.request(Manifest.permission.RECORD_AUDIO) { granted ->
-                if (granted) begin() else context.nav.pop()
+                if (granted) {
+                    begin()
+                } else {
+                    // Back to the chat, then say why, with the way to allow it.
+                    context.nav.pop()
+                    io.github.kasecrab.razorback.ui.core.MicPermission.explain(context)
+                }
             }
         }
     }

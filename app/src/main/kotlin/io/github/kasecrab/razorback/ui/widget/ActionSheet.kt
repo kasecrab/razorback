@@ -18,6 +18,25 @@ class ActionSheet(context: Context) : Sheet(context) {
     private class Item(val icon: Int, val label: String, val danger: Boolean, val row: LinearLayout, val image: ImageView, val text: TextView)
 
     private val items = ArrayList<Item>(4)
+    private var title: TextView? = null
+    private var text: TextView? = null
+
+    /** A heading and a line of explanation above the actions. */
+    fun header(heading: String, explanation: String): ActionSheet {
+        val t = TextView(context)
+        t.typeface = Fonts.medium
+        t.text = heading
+        t.setPadding(dp(20), dp(4), dp(20), dp(4))
+        body.addView(t, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        val e = TextView(context)
+        e.typeface = Fonts.regular
+        e.text = explanation
+        e.setPadding(dp(20), 0, dp(20), dp(12))
+        body.addView(e, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        title = t
+        text = e
+        return this
+    }
 
     fun add(icon: Int, label: String, danger: Boolean = false, onClick: () -> Unit): ActionSheet {
         val row = LinearLayout(context)
@@ -44,6 +63,14 @@ class ActionSheet(context: Context) : Sheet(context) {
     override fun onThemeChanged(theme: Theme) {
         super.onThemeChanged(theme)
         body.setPadding(0, 0, 0, dp(4))
+        title?.let {
+            it.setTextColor(theme.textPrimary)
+            it.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.TITLE))
+        }
+        text?.let {
+            it.setTextColor(theme.textSecondary)
+            it.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
+        }
         for (it in items) {
             val color = if (it.danger) theme.danger else theme.textPrimary
             it.row.background = Shapes.ripple(theme.accentSoft, null, 0f)

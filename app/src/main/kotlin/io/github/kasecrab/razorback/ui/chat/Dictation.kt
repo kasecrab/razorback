@@ -8,6 +8,7 @@ import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import android.widget.EditText
 import android.widget.Toast
+import io.github.kasecrab.razorback.ui.core.MicPermission
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.core.Keys
 import io.github.kasecrab.razorback.core.Secrets
@@ -63,8 +64,14 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
             Toast.makeText(context, "Add a Deepgram key in settings", Toast.LENGTH_SHORT).show()
             return
         }
+        if (!io.github.kasecrab.razorback.core.Net.online(context)) {
+            Toast.makeText(context, io.github.kasecrab.razorback.core.Net.OFFLINE, Toast.LENGTH_SHORT).show()
+            return
+        }
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            context.ui().permissions.request(Manifest.permission.RECORD_AUDIO) { granted -> if (granted) start() }
+            context.ui().permissions.request(Manifest.permission.RECORD_AUDIO) { granted ->
+                if (granted) start() else MicPermission.explain(context)
+            }
             return
         }
         settle?.let { edit.removeCallbacks(it) }
