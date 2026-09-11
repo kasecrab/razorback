@@ -37,9 +37,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * One field per vendor key. Typing only stages a key: Save writes the keys that changed and
- * asks their vendors about those keys alone, so an untouched key is never checked twice, and
- * a key that was accepted keeps its date until someone edits it or asks for a fresh check.
+ * One field per vendor key. Typing only stages a key: Save asks each changed key's vendor
+ * about it first and writes it only once accepted, so a key that does not work is never
+ * kept; a key that was accepted keeps its date until someone edits it or asks for a fresh check.
  */
 class ProvidersScreen(context: Context) : Screen(context) {
 
@@ -138,10 +138,10 @@ class ProvidersScreen(context: Context) : Screen(context) {
         addView(saveBar, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
     }
 
-    /** Writes every key that changed, then checks those keys and no others. */
+    /** Every key that changed is checked with its vendor and written only if accepted. */
     private fun saveAll() {
         Keyboard.hideAll(context)
-        for (r in rows) if (r.save()) r.check()
+        for (r in rows) r.commit()
         syncSaveBar()
     }
 
@@ -257,17 +257,51 @@ class ProvidersScreen(context: Context) : Screen(context) {
             render()
         }
 
-        /** Writes a changed key and says whether it is worth checking now. */
-        fun save(): Boolean {
-            if (!dirty) return false
+        /**
+         * A cleared key is dropped at once; a new key is put to its vendor first and kept
+         * only when accepted, otherwise it stays in the field, unsaved, with the reason.
+         */
+        fun commit() {
+            if (!dirty) return
             val key = typed
-            secrets.put(name, key)
-            checks.forget(name)
-            detail = null
+            if (key.isEmpty()) {
+                secrets.put(name, null)
+                checks.forget(name)
+                detail = null
+                failure = null
+                render()
+                return
+            }
+            job?.cancel()
+            busy = true
             failure = null
-            input.text = key
             render()
-            return key.isNotEmpty()
+            job = context.uiScope.launch {
+                val result = runCatching { withContext(Dispatchers.IO) { probe(key) } }
+                busy = false
+                result.onSuccess {
+                    secrets.put(name, key)
+                    checks.accepted(name, key)
+                    detail = it
+                    input.text = key
+                }
+                result.onFailure { failure = context.getString(R.string.key_rejected, reason(it)) }
+                render()
+                syncSaveBar()
+            }
+        }
+
+        /** What the vendor's refusal comes down to, in a few words. */
+        private fun reason(t: Throwable): String {
+            val vendorName = when (name) {
+                Secrets.OPENROUTER -> "OpenRouter"
+                Secrets.DEEPGRAM -> "Deepgram"
+                Secrets.BRAVE -> "Brave"
+                Secrets.EXA -> "Exa"
+                else -> name
+            }
+            val http = t as? io.github.kasecrab.razorback.core.HttpException
+            return if (http != null && (http.status == 401 || http.status == 403)) context.getString(R.string.key_refused, vendorName) else t.message ?: t.javaClass.simpleName
         }
 
         fun revert() {
@@ -310,7 +344,7 @@ class ProvidersScreen(context: Context) : Screen(context) {
             status.tone = if (failed != null) Caption.Tone.DANGER else Caption.Tone.NORMAL
             status.text = when {
                 busy -> context.getString(R.string.verifying)
-                failed != null -> failed
+                failed != null && dirty -> failed
                 dirty -> context.getString(R.string.key_unsaved)
                 key.isEmpty() -> context.getString(R.string.key_none)
                 at == null -> context.getString(R.string.key_unchecked)

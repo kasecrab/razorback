@@ -79,6 +79,10 @@
     <string name="key_needed_openrouter">Every reply comes from a model on OpenRouter.</string>
     <string name="key_needed_deepgram">Voice mode and dictation listen and speak through Deepgram.</string>
     <string name="open_providers">Open providers</string>
+    <string name="key_rejected">Not saved · %s</string>
+    <string name="key_refused">%s refused this key</string>
+    <string name="key_rejected_title">%s refused the key</string>
+    <string name="key_rejected_text">The saved %s key was not accepted. Check it under Settings › Providers.</string>
     <string name="models_need_key">Add your OpenRouter key to see the models</string>
     <string name="search_chats">Search chats</string>
     <string name="cd_clear_search">Clear search</string>
