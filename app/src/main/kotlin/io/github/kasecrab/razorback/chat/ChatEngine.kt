@@ -279,7 +279,7 @@ class ChatEngine(
         for (l in listeners) l.onStreamingChanged(true)
         val info = catalog.find(model)
         val history = messages.subList(0, index).filter { it.status != MessageStatus.ERROR || it.role == Role.TOOL }
-        val offered = if (round < MAX_TOOL_ROUNDS && (info == null || info.supportsTools)) tools.enabled() else emptyList()
+        val offered = if (round < MAX_TOOL_ROUNDS && (info == null || info.supportsTools)) tools.enabled(spoken) else emptyList()
         val started = System.currentTimeMillis()
         job = io.launch {
             val request = ChatRequest(

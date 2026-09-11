@@ -32,7 +32,7 @@ class App : Application() {
     val catalog: ModelCatalog by lazy { ModelCatalog(ModelCache(filesDir)) { secrets.get(Secrets.OPENROUTER) } }
     val tools: ToolRegistry by lazy { ToolRegistry(prefs, secrets) }
     val engine: ChatEngine by lazy { ChatEngine(this, prefs, openRouter, store, catalog, tools, io.github.kasecrab.razorback.chat.Namer { secrets.get(Secrets.OPENROUTER) }) }
-    val voice: VoiceSession by lazy { VoiceSession(this, prefs, secrets, engine) }
+    val voice: VoiceSession by lazy { VoiceSession(this, prefs, secrets, engine, tools.endVoice) }
     val favorites: Favorites by lazy { Favorites(prefs) }
     val voices: VoiceCatalog by lazy { VoiceCatalog(filesDir) { secrets.get(Secrets.DEEPGRAM) } }
 

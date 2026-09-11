@@ -234,6 +234,11 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
     override fun onSentence(spoken: String) = transcript.replySentence(spoken)
 
+    override fun onEnded() {
+        Haptics.heavy()
+        context.nav.pop()
+    }
+
     override fun onError(message: String) {
         if (message == io.github.kasecrab.razorback.voice.DeepgramAccount.KEY_REFUSED) {
             context.nav.pop()

@@ -22,6 +22,7 @@ class VoiceSession(
     private val prefs: Prefs,
     private val secrets: Secrets,
     private val engine: ChatEngine,
+    private val endVoice: io.github.kasecrab.razorback.tools.EndVoiceTool,
 ) : Ears.Listener, TtsLink.Listener, ChatEngine.Listener {
 
     enum class State { IDLE, CONNECTING, LISTENING, USER_SPEAKING, THINKING, SEARCHING, SPEAKING, RECONNECTING, ERROR }
@@ -34,6 +35,8 @@ class VoiceSession(
         /** One sentence, in the form the voice will say it, handed to the speaker. */
         fun onSentence(spoken: String)
         fun onError(message: String)
+        /** The person asked, by voice, for voice mode to close, and the goodbye has been said. */
+        fun onEnded()
     }
 
     var listener: Listener? = null
@@ -104,12 +107,17 @@ class VoiceSession(
         }
     }
 
+    /** The model has been asked to close voice mode; the screen goes once the reply has been read. */
+    private var closing = false
+
     fun start() {
         if (isActive) return
         if (!Net.online(context)) {
             fail(Net.OFFLINE)
             return
         }
+        closing = false
+        endVoice.onCalled = { main.post { closing = true } }
         state = State.CONNECTING
         engine.addListener(this)
         stt = ears()
@@ -133,6 +141,8 @@ class VoiceSession(
 
     fun stop() {
         if (state == State.IDLE) return
+        endVoice.onCalled = null
+        closing = false
         engine.removeListener(this)
         if (engine.isStreaming && replyIndex >= 0) engine.stop()
         // Nothing that arrives from here on is ours: not audio, not text.
@@ -249,8 +259,25 @@ class VoiceSession(
                     return
                 }
                 listener?.onUserText(transcript, true)
+                if (VoiceCommands.closes(transcript)) {
+                    // Said plainly: no need to ask the model.
+                    state = State.LISTENING
+                    listener?.onEnded()
+                    return
+                }
                 ask(transcript)
             }
+        }
+    }
+
+    /** The reply is over and the ears are open again; if the person asked to stop, this is the moment. */
+    private fun rest() {
+        replyIndex = -1
+        mic.muted.set(false)
+        state = State.LISTENING
+        if (closing) {
+            closing = false
+            listener?.onEnded()
         }
     }
 
@@ -429,8 +456,7 @@ class VoiceSession(
             flushPending()
             if (m.status == MessageStatus.ERROR) {
                 listener?.onError(m.error ?: "The model did not answer")
-                replyIndex = -1
-                state = State.LISTENING
+                rest()
                 return
             }
             if (m.status == MessageStatus.COMPLETE && m.toolCalls.isNotEmpty()) {
@@ -438,6 +464,11 @@ class VoiceSession(
                 // is not dead air, and keep the turn open for the reply that follows.
                 toolRound = true
                 main.removeCallbacks(slowThinking)
+                if (m.toolCalls.all { it.name == io.github.kasecrab.razorback.tools.EndVoiceTool.NAME }) {
+                    // Closing is not a search: nothing to look up, nothing to say until the goodbye.
+                    if (m.content.isNotBlank()) cue(m.content)
+                    return
+                }
                 if (state == State.THINKING) state = State.SEARCHING
                 cue(if (m.content.isBlank()) CUES[cues++ % CUES.size] else m.content)
                 return
@@ -455,8 +486,7 @@ class VoiceSession(
         if (!streamDone || !clock.allFlushed) return
         if (clock.sentenceCount == 0 || clock.totalBytes == 0L) {
             // Nothing to say, or the voice had nothing to give; straight back to listening.
-            replyIndex = -1
-            state = State.LISTENING
+            rest()
             return
         }
         playback.markEnd()
@@ -478,10 +508,7 @@ class VoiceSession(
             ask(next)
             return
         }
-        if (replyIndex >= 0 && engine.messages.getOrNull(replyIndex)?.status == MessageStatus.CUT && state == State.THINKING) {
-            replyIndex = -1
-            state = State.LISTENING
-        }
+        if (replyIndex >= 0 && engine.messages.getOrNull(replyIndex)?.status == MessageStatus.CUT && state == State.THINKING) rest()
     }
 
     /** Something short to say about the wait; once it has played the wait goes on in silence. */
@@ -615,9 +642,7 @@ class VoiceSession(
                 state = if (toolRound) State.SEARCHING else State.THINKING
                 return@execute
             }
-            replyIndex = -1
-            mic.muted.set(false)
-            state = State.LISTENING
+            rest()
         }
     }
 
