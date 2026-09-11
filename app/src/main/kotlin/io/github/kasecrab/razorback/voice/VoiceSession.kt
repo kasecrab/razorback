@@ -71,12 +71,14 @@ class VoiceSession(
     private var cues = 0
     private var thinkCues = 0
     private val slowThinking = Runnable {
-        if (replyIndex >= 0 && state == State.THINKING && spokenChars == 0 && clock.sentenceCount == 0) {
+        if (replyIndex >= 0 && state == State.THINKING && spokenChars == 0 && clock.sentenceCount == 0 && unflushed.isEmpty()) {
             cue(THINK_CUES[thinkCues++ % THINK_CUES.size])
         }
     }
     private var replyStartBytes = 0L
     @Volatile private var playbackStartedAt = 0L
+    /** Audio has arrived for the stretch of speech now playing; cleared when the speaker goes quiet. */
+    @Volatile private var audioArrived = false
     @Volatile private var playbackEndedAt = 0L
     private var muted = false
     /** A finished turn that arrived while the previous reply was still being cancelled. */
@@ -86,6 +88,9 @@ class VoiceSession(
     private val spokenStems = HashSet<String>(256)
     /** Speech heard over the reply that has not yet proved to be the person rather than the speaker. */
     private var tentative = false
+    /** Text the voice has been given but not yet told to say; see [paceFlush]. */
+    private val unflushed = StringBuilder()
+    private val flushLater = Runnable { paceFlush(overdue = true) }
 
     /** Which service listens, from settings: Nova for accuracy, Flux for the quickest turn-taking. */
     private fun ears(): Ears {
@@ -137,6 +142,8 @@ class VoiceSession(
         focus.release()
         chunker.reset()
         clock.reset()
+        unflushed.setLength(0)
+        main.removeCallbacks(flushLater)
         pendingTurn = null
         streamDone = false
         toolRound = false
@@ -280,8 +287,11 @@ class VoiceSession(
         tts.clear()
         playback.clear()
         playbackEndedAt = SystemClock.elapsedRealtime()
+        audioArrived = false
         chunker.reset()
         clock.reset()
+        unflushed.setLength(0)
+        main.removeCallbacks(flushLater)
         streamDone = false
         toolRound = false
         main.removeCallbacks(slowThinking)
@@ -351,6 +361,8 @@ class VoiceSession(
         askedAt = SystemClock.elapsedRealtime()
         chunker.reset()
         clock.reset()
+        unflushed.setLength(0)
+        main.removeCallbacks(flushLater)
         spokenChars = 0
         streamDone = false
         toolRound = false
@@ -393,6 +405,7 @@ class VoiceSession(
         }
         if (!streaming) {
             chunker.flush()
+            flushPending()
             if (m.status == MessageStatus.ERROR) {
                 listener?.onError(m.error ?: "The model did not answer")
                 replyIndex = -1
@@ -454,22 +467,71 @@ class VoiceSession(
     private fun cue(text: String) {
         cuePending = true
         speak(text)
+        flushPending()
     }
 
     private fun speak(sentence: String) {
         val text = SpeechText.strip(sentence)
         if (text.isBlank()) return
         Log.d { "voice: sentence of ${text.length} chars to aura ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
-        clock.sentence(text)
         for (w in words(text)) {
             spokenWords.add(w)
             if (w.length >= 4) spokenStems.add(w.substring(0, 4))
         }
         listener?.onSentence(text)
-        tts.speak(text)
-        // Aura only returns audio for text that has been flushed; one flush per sentence
-        // means the first sentence plays while the model is still writing the rest.
+        // A space at the end keeps this sentence apart from the next in the voice's buffer.
+        tts.speak("$text ")
+        if (unflushed.isNotEmpty()) unflushed.append(' ')
+        unflushed.append(text)
+        paceFlush()
+    }
+
+    /**
+     * Aura says nothing until told to flush, and it says each flushed run as one piece.
+     * Flushing every sentence gives the quickest start, but Deepgram warns that very
+     * frequent flushes degrade the audio and caps them at twenty a minute; a reply of
+     * short sentences flushed one by one is where the voice was heard to waver. So only
+     * the first words go out on their own; after that, text gathers until there is a good
+     * run of it or the speaker is about to run out, whichever comes first.
+     */
+    private fun paceFlush(overdue: Boolean = false) {
+        main.removeCallbacks(flushLater)
+        val chars = unflushed.length
+        if (chars == 0) return
+        if (clock.sentenceCount == 0) {
+            if (chars >= FIRST_FLUSH_CHARS || overdue) flushPending() else main.postDelayed(flushLater, FIRST_FLUSH_WAIT_MS)
+            return
+        }
+        if (chars >= GROUP_CHARS) {
+            flushPending()
+            return
+        }
+        if (!clock.allFlushed) {
+            // The last run's audio is still arriving; how far ahead the speaker is will be known once it has.
+            Log.d { "voice: $chars chars wait, a run is still arriving" }
+            main.postDelayed(flushLater, FLUSH_POLL_MS)
+            return
+        }
+        val ahead = audioAheadMs()
+        Log.d { "voice: $chars chars wait, speaker $ahead ms ahead" }
+        if (ahead <= LOW_WATER_MS) flushPending() else main.postDelayed(flushLater, ahead - LOW_WATER_MS)
+    }
+
+    /** Tell the voice to say everything it has been given since the last flush. */
+    private fun flushPending() {
+        main.removeCallbacks(flushLater)
+        if (unflushed.isEmpty()) return
+        val run = unflushed.toString()
+        unflushed.setLength(0)
+        Log.d { "voice: flush of ${run.length} chars, speaker ${audioAheadMs()} ms ahead" }
+        clock.sentence(run)
         tts.flush()
+    }
+
+    /** Milliseconds of speech queued on the speaker and not yet heard, at the pace it is played. */
+    private fun audioAheadMs(): Long {
+        val bytes = playback.enqueuedBytes.get() - playback.playedBytes()
+        return (bytes / Playback.BYTES_PER_MS / Speed.stretch(prefs[Keys.VOICE_SPEED])).toLong()
     }
 
     // Speech out
@@ -477,19 +539,22 @@ class VoiceSession(
     /** Arrives on the socket reader thread: audio goes straight to the speaker, state hops to main. */
     override fun onAudio(data: ByteArray) {
         if (replyIndex < 0) return
-        val first = !playback.isPlaying
+        val first = !audioArrived
+        audioArrived = true
         clock.audio(data.size)
         if (first) {
             // Set here, before the audio can reach the speaker, so the gate calibrates from the first chunk.
             playbackStartedAt = SystemClock.elapsedRealtime()
             echoRatio = maxOf(ECHO_RATIO_FLOOR, echoRatio * 0.9f)
             java.util.Arrays.fill(outRecent, 0f)
+            Log.d { "voice: first tts audio ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
         }
         playback.enqueue(data)
-        if (first) {
+        // The answer's audio can start while a cue is still playing, so every chunk checks the
+        // state, not just the first; a cue while searching keeps the searching status.
+        if (state == State.THINKING || (state == State.SEARCHING && !toolRound)) {
             context.mainExecutor.execute {
-                Log.d { "voice: first tts audio ${SystemClock.elapsedRealtime() - askedAt} ms after the turn ended" }
-                // A cue while searching keeps the searching status; the answer itself is speaking.
+                if (replyIndex < 0) return@execute
                 if (state == State.THINKING || (state == State.SEARCHING && !toolRound)) {
                     state = State.SPEAKING
                     if (prefs[Keys.VOICE_MUTE_WHILE_SPEAKING]) mic.muted.set(true)
@@ -509,6 +574,7 @@ class VoiceSession(
                 if (clock.allFlushed) playback.markEnd()
                 return@execute
             }
+            if (unflushed.isNotEmpty()) paceFlush()
             maybeEnd()
         }
     }
@@ -517,6 +583,7 @@ class VoiceSession(
 
     private fun onDrained() {
         playbackEndedAt = SystemClock.elapsedRealtime()
+        audioArrived = false
         context.mainExecutor.execute {
             if (state != State.SPEAKING && state != State.SEARCHING) return@execute
             if (toolRound || (engine.isStreaming && !streamDone)) {
@@ -548,6 +615,14 @@ class VoiceSession(
         /** Chunks of 80 ms: 640 ms of recent speaker level. */
         const val OUT_WINDOW = 8
         const val DOUBTFUL = 0.6f
+        /** The first run goes out with a sentence's worth, or after a short wait for one. */
+        const val FIRST_FLUSH_CHARS = 12
+        const val FIRST_FLUSH_WAIT_MS = 300L
+        /** Text gathers up to this much before a flush while the speaker has plenty queued. */
+        const val GROUP_CHARS = 200
+        /** A flush goes out when the speaker has less than this left to say. */
+        const val LOW_WATER_MS = 1200L
+        const val FLUSH_POLL_MS = 250L
         val NON_WORD = Regex("[^\\p{L}\\p{N}']+")
     }
 
