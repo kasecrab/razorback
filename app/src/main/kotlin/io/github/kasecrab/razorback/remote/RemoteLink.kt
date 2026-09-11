@@ -46,6 +46,12 @@ class RemoteLink(
     var attached: String = ""
         private set
 
+    /** The question the machine is waiting on, until somebody answers it. */
+    var pending: Frames.Question? = null
+        private set
+    var pendingIsTool: Boolean = false
+        private set
+
     val paired: Boolean get() = secrets.has(Secrets.RELAY) && url().isNotEmpty()
 
     fun add(watcher: Watcher) {
@@ -89,7 +95,8 @@ class RemoteLink(
             // Picking up where this phone left off rather than asking for
             // everything the relay still has.
             val from = store.machines().firstOrNull { it.hub == hub }?.cursor ?: 0
-            started.start(from)
+            // Stopped, or paired afresh, while the cursor was being read: this one never dials.
+            if (client === started) started.start(from)
         }
     }
 
@@ -102,7 +109,14 @@ class RemoteLink(
 
     fun attach(session: String) {
         attached = session
-        client?.send(Frames.attach(session, "phone", 0))
+        client?.send(Frames.attach(session, "phone", client?.cursor ?: 0))
+    }
+
+    /** No longer watching: the machine stops saying who is, and the background link can rest. */
+    fun detach() {
+        val was = attached
+        attached = ""
+        if (was.isNotEmpty()) client?.send(Frames.detach(was))
     }
 
     fun submit(text: String) {
@@ -114,7 +128,18 @@ class RemoteLink(
     }
 
     fun answerTool(id: Long, allow: Boolean) {
+        if (pending?.id == id) pending = null
         client?.send(Frames.answerTool(attached, id, allow))
+    }
+
+    fun answerAsk(id: Long, picked: String?, note: String) {
+        if (pending?.id == id) pending = null
+        client?.send(Frames.answerAsk(attached, id, picked, note))
+    }
+
+    fun dismissAsk(id: Long) {
+        if (pending?.id == id) pending = null
+        client?.send(Frames.dismissAsk(attached, id))
     }
 
     fun resume(session: String) {
@@ -132,7 +157,7 @@ class RemoteLink(
         if (attached.isNotEmpty()) attach(attached)
     }
 
-    override fun onPayload(payload: Frames.FromDesk) {
+    override fun onPayload(payload: Frames.FromDesk, n: Long) {
         when (payload) {
             is Frames.FromDesk.Hello -> {
                 machine = payload.machine
@@ -146,30 +171,45 @@ class RemoteLink(
             }
             is Frames.FromDesk.State -> watchers.forEach { it.onState(payload.state) }
             is Frames.FromDesk.Events -> {
-                val cursor = client?.cursor ?: 0
+                // Keyed by the frame's own number, not by wherever the socket has got to
+                // since: two frames read before this thread turned round would otherwise
+                // land under one key and the second would be dropped.
                 scope.launch {
-                    store.rememberEvents(payload.session, cursor, payload.events)
-                    store.rememberCursor(hub, cursor)
+                    store.rememberEvents(payload.session, n, payload.events)
+                    store.rememberCursor(hub, n)
                 }
                 watchers.forEach { it.onEvents(payload.session, payload.events) }
             }
             is Frames.FromDesk.Snapshot ->
                 watchers.forEach { it.onSnapshot(payload.session, payload.messages) }
-            is Frames.FromDesk.Ask ->
+            is Frames.FromDesk.Ask -> {
+                pending = payload.question
+                pendingIsTool = payload.isTool
                 watchers.forEach { it.onAsk(payload.question, payload.isTool) }
-            is Frames.FromDesk.Answered ->
+            }
+            is Frames.FromDesk.Answered -> {
+                if (pending?.id == payload.id) pending = null
                 watchers.forEach { it.onAnswered(payload.id, payload.by) }
+            }
             is Frames.FromDesk.Ack ->
                 payload.error?.let { why -> watchers.forEach { it.onTrouble(why) } }
             is Frames.FromDesk.Notice -> watchers.forEach { it.onTrouble(payload.text) }
-            is Frames.FromDesk.Bye ->
-                watchers.forEach { it.onTrouble("that machine has gone") }
+            is Frames.FromDesk.Bye -> {
+                val text = when (payload.reason) {
+                    "tui_taking_over" -> "a window on the machine took over; carrying on with it"
+                    "revoked" -> "this pairing was ended"
+                    else -> "that machine has gone"
+                }
+                watchers.forEach { it.onTrouble(text) }
+            }
             else -> {}
         }
     }
 
+    /** What was missed is gone from the relay; a fresh attach brings whole messages instead. */
     override fun onGap(from: Long) {
         watchers.forEach { it.onTrouble("earlier output is no longer kept") }
+        if (attached.isNotEmpty()) attach(attached)
     }
 
     override fun onTrouble(text: String, fatal: Boolean) {

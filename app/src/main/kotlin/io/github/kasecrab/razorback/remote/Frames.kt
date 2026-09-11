@@ -81,7 +81,21 @@ object Frames {
 
     data class SessionState(val session: String, val busy: Boolean, val model: String, val cwd: String)
 
-    data class Question(val session: String, val id: Long, val what: String, val reason: String)
+    /**
+     * Something the machine is waiting on. For a tool, [what] names the tool and [reason]
+     * says why it asked. For a question, [what] is the first question, [options] its
+     * choices, and [count] how many questions the ask holds: only a lone one can be
+     * answered from here, the rest wait for the keyboard.
+     */
+    data class Question(
+        val session: String,
+        val id: Long,
+        val what: String,
+        val reason: String,
+        val header: String = "",
+        val options: List<String> = emptyList(),
+        val count: Int = 1,
+    )
 
     sealed class FromDesk {
         data class Hello(val machine: Machine) : FromDesk()
@@ -138,15 +152,23 @@ object Frames {
                 ),
                 isTool = true,
             )
-            "ask_user" -> FromDesk.Ask(
-                Question(
-                    session = o.optString("session"),
-                    id = o.optLong("id"),
-                    what = firstQuestion(o.optJSONObject("ask")),
-                    reason = "",
-                ),
-                isTool = false,
-            )
+            "ask_user" -> {
+                val ask = o.optJSONObject("ask")
+                val questions = ask?.optJSONArray("questions")
+                val first = questions?.optJSONObject(0)
+                FromDesk.Ask(
+                    Question(
+                        session = o.optString("session"),
+                        id = o.optLong("id"),
+                        what = first?.optString("question").orEmpty().ifBlank { "a question" },
+                        reason = "",
+                        header = first?.optString("header").orEmpty(),
+                        options = labels(first?.optJSONArray("options")),
+                        count = questions?.length() ?: 1,
+                    ),
+                    isTool = false,
+                )
+            }
             "answered" -> FromDesk.Answered(o.optString("session"), o.optLong("id"), o.optString("by"))
             "ack" -> FromDesk.Ack(
                 o.optBoolean("ok"),
@@ -179,6 +201,27 @@ object Frames {
 
     fun answerTool(session: String, id: Long, allow: Boolean): ByteArray = JSONObject()
         .put("k", "answer_permission").put("session", session).put("id", id).put("allow", allow)
+        .toString().toByteArray()
+
+    fun detach(session: String): ByteArray = JSONObject()
+        .put("k", "detach").put("session", session).toString().toByteArray()
+
+    /**
+     * One answer to a one-question ask: the option picked, the note typed, or both. The
+     * harness reads a `reply` tag and one answer per question.
+     */
+    fun answerAsk(session: String, id: Long, picked: String?, note: String): ByteArray {
+        val answer = JSONObject()
+        if (!picked.isNullOrEmpty()) answer.put("picked", JSONArray().put(picked))
+        if (note.isNotEmpty()) answer.put("note", note)
+        val reply = JSONObject().put("reply", "answered").put("answers", JSONArray().put(answer))
+        return JSONObject().put("k", "answer_ask").put("session", session).put("id", id).put("reply", reply)
+            .toString().toByteArray()
+    }
+
+    fun dismissAsk(session: String, id: Long): ByteArray = JSONObject()
+        .put("k", "answer_ask").put("session", session).put("id", id)
+        .put("reply", JSONObject().put("reply", "dismissed"))
         .toString().toByteArray()
 
     fun resume(session: String): ByteArray = JSONObject()
@@ -217,8 +260,15 @@ object Frames {
         return out
     }
 
-    private fun firstQuestion(ask: JSONObject?): String =
-        ask?.optJSONArray("questions")?.optJSONObject(0)?.optString("question") ?: "a question"
+    private fun labels(options: JSONArray?): List<String> {
+        if (options == null) return emptyList()
+        val out = ArrayList<String>(options.length())
+        for (i in 0 until options.length()) {
+            val label = options.optJSONObject(i)?.optString("label") ?: options.optString(i)
+            if (label.isNotBlank()) out.add(label)
+        }
+        return out
+    }
 
     /**
      * One event from the `--json` stream, as something to show. The shapes are
@@ -227,6 +277,8 @@ object Frames {
     fun eventText(event: JSONObject): String? = when (event.optString("type")) {
         "text" -> event.optString("text")
         "error" -> "\n" + event.optString("error")
+        "tool_denied" -> "\n_" + event.optJSONObject("call")?.optJSONObject("function")?.optString("name").orEmpty().ifBlank { "a tool" } + " was not allowed_\n"
+        "notice" -> "\n_" + event.optString("text") + "_\n"
         else -> null
     }
 

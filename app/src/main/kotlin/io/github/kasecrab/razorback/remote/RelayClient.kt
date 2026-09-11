@@ -25,8 +25,8 @@ class RelayClient(
     interface Listener {
         /** The link is up. Anything the machine needs told goes now. */
         fun onLink() {}
-        /** One payload, already opened. */
-        fun onPayload(payload: Frames.FromDesk) {}
+        /** One payload, already opened, with the relay's number for the frame it came in. */
+        fun onPayload(payload: Frames.FromDesk, n: Long) {}
         /** Everything before this is gone from the relay. */
         fun onGap(from: Long) {}
         /** Something worth putting in front of a person. */
@@ -45,9 +45,10 @@ class RelayClient(
     @Volatile var cursor: Long = 0
         private set
 
-    private var deskLink: ByteArray? = null
-    private var sealer: Crypto.Sealer? = null
-    private var opener: Crypto.Opener? = null
+    // Set on the reader thread, read on the main thread when something is sent.
+    @Volatile private var deskLink: ByteArray? = null
+    @Volatile private var sealer: Crypto.Sealer? = null
+    @Volatile private var opener: Crypto.Opener? = null
 
     fun start(from: Long = 0) {
         cursor = from
@@ -119,7 +120,8 @@ class RelayClient(
                 if (opened.why == Crypto.Refusal.REPLAY) return
                 val plain = opened.plain ?: return
                 val payload = Frames.readPayload(plain) ?: return
-                main.post { listener.onPayload(payload) }
+                val n = frame.n
+                main.post { listener.onPayload(payload, n) }
             }
             is Frames.Envelope.Gap -> {
                 cursor = frame.from
@@ -165,15 +167,19 @@ class RelayClient(
         deskLink = null
         if (!armed) return
         // A refusal will be refused again in exactly the same way.
-        if (error is HandshakeException && (error.status == 401 || error.status == 403)) {
-            armed = false
-            main.post { listener.onTrouble("this phone is not paired with that machine", true) }
-            return
-        }
-        if (error is HandshakeException && error.status == 410) {
-            armed = false
-            main.post { listener.onTrouble("this pairing was ended", true) }
-            return
+        if (error is HandshakeException) {
+            val why = when {
+                error.status == 401 && error.body.contains("skew") -> "this phone's clock is more than five minutes out"
+                error.status == 401 || error.status == 403 -> "the relay does not know this pairing code"
+                error.status == 404 -> "the relay has never heard of this pairing"
+                error.status == 410 -> "this pairing was ended"
+                else -> null
+            }
+            if (why != null) {
+                armed = false
+                main.post { listener.onTrouble(why, true) }
+                return
+            }
         }
         val wait = backoffMs
         backoffMs = minOf(backoffMs * 2, 16_000L)

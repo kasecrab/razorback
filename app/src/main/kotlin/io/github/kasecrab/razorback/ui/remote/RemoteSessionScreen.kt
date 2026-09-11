@@ -41,6 +41,8 @@ class RemoteSessionScreen(context: Context, private val session: String) :
     private val adapter = ChatAdapter(messages)
     private val input = TextField(context)
     private var question: Frames.Question? = null
+    /** Whole messages have come from the machine; what was kept here is no longer the best copy. */
+    private var snapshotted = false
 
     init {
         val column = LinearLayout(context)
@@ -85,11 +87,16 @@ class RemoteSessionScreen(context: Context, private val session: String) :
         link.attach(session)
         App.instance.scope.launch {
             val kept = App.instance.remoteStore.events(session)
-            if (messages.isEmpty()) onEvents(session, kept)
+            // Only until the machine sends the real thing: kept events hold what the
+            // model said and nothing the person did.
+            if (messages.isEmpty() && !snapshotted) onEvents(session, kept)
         }
+        val asked = link.pending
+        if (asked != null && asked.session == session) onAsk(asked, link.pendingIsTool)
     }
 
     override fun onExit() {
+        link.detach()
         link.remove(this)
     }
 
@@ -126,7 +133,8 @@ class RemoteSessionScreen(context: Context, private val session: String) :
      */
     override fun onSnapshot(session: String, snapshot: List<JSONObject>) {
         if (session != this.session && session.isNotEmpty()) return
-        if (messages.isNotEmpty()) return
+        snapshotted = true
+        messages.clear()
         for (m in snapshot) {
             val said = m.optString("content")
             if (said.isBlank()) continue
@@ -142,13 +150,41 @@ class RemoteSessionScreen(context: Context, private val session: String) :
     }
 
     override fun onAsk(question: Frames.Question, isTool: Boolean) {
+        if (question.session != session) return
         this.question = question
-        val what = if (isTool) "Run ${question.what}?" else question.what
-        ActionSheet(context)
-            .header(what, question.reason.ifBlank { "asked by the machine" })
-            .add(R.drawable.ic_check, "Allow") { answer(true) }
-            .add(R.drawable.ic_close, "Deny", danger = true) { answer(false) }
-            .show()
+        if (isTool) {
+            ActionSheet(context)
+                .header("Run ${question.what}?", question.reason.ifBlank { "asked by the machine" })
+                .add(R.drawable.ic_check, "Allow") { answer(true) }
+                .add(R.drawable.ic_close, "Deny", danger = true) { answer(false) }
+                .show()
+            return
+        }
+        // A question: its choices, a typed answer, or nothing. An ask with several
+        // questions is answered at the keyboard; from here it can only be dismissed.
+        val sheet = ActionSheet(context).header(question.header.ifBlank { "The machine asks" }, question.what)
+        if (question.count == 1) {
+            for (option in question.options) {
+                sheet.add(R.drawable.ic_check, option) { reply(question, option, "") }
+            }
+            sheet.add(R.drawable.ic_edit, "Type an answer") {
+                io.github.kasecrab.razorback.ui.widget.InputSheet(context, question.what, "") { typed ->
+                    reply(question, null, typed)
+                }.show()
+            }
+        } else {
+            sheet.add(R.drawable.ic_edit, "${question.count} questions: answer at the machine") {}
+        }
+        sheet.add(R.drawable.ic_close, "Dismiss", danger = true) {
+            if (this.question?.id == question.id) this.question = null
+            link.dismissAsk(question.id)
+        }
+        sheet.show()
+    }
+
+    private fun reply(asked: Frames.Question, picked: String?, note: String) {
+        if (question?.id == asked.id) question = null
+        link.answerAsk(asked.id, picked, note)
     }
 
     override fun onAnswered(id: Long, by: String) {

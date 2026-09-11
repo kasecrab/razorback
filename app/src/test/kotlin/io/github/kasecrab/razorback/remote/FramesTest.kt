@@ -110,10 +110,34 @@ class FramesTest {
         assertEquals("answer_permission", answer.getString("k"))
         assertTrue(answer.getBoolean("allow"))
 
+        val ask = JSONObject(String(Frames.answerAsk("abc", 7, "Yes", "but carefully")))
+        assertEquals("answer_ask", ask.getString("k"))
+        assertEquals("answered", ask.getJSONObject("reply").getString("reply"))
+        val first = ask.getJSONObject("reply").getJSONArray("answers").getJSONObject(0)
+        assertEquals("Yes", first.getJSONArray("picked").getString(0))
+        assertEquals("but carefully", first.getString("note"))
+        val dismissed = JSONObject(String(Frames.dismissAsk("abc", 7)))
+        assertEquals("dismissed", dismissed.getJSONObject("reply").getString("reply"))
+        assertEquals("detach", JSONObject(String(Frames.detach("abc"))).getString("k"))
+
         val sub = JSONObject(Frames.subscribe(9, 200))
         assertEquals("sub", sub.getString("t"))
         assertEquals(1, sub.getInt("v"))
         assertEquals(9, sub.getInt("since"))
+    }
+
+    @Test
+    fun aQuestionCarriesItsChoicesAndHowManyQuestionsThereAre() {
+        val payload = Frames.readPayload(
+            """{"k":"ask_user","session":"abc","id":3,"ask":{"questions":[
+            {"header":"Branch","question":"Which branch?","options":[{"label":"main"},{"label":"dev","description":"the risky one"}]},
+            {"question":"And why?"}]}}""".toByteArray(),
+        ) as Frames.FromDesk.Ask
+        assertEquals(false, payload.isTool)
+        assertEquals("Which branch?", payload.question.what)
+        assertEquals("Branch", payload.question.header)
+        assertEquals(listOf("main", "dev"), payload.question.options)
+        assertEquals(2, payload.question.count)
     }
 
     @Test
