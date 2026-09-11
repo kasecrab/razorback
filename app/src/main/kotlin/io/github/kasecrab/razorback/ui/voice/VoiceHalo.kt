@@ -14,6 +14,7 @@ import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.orb.OrbView
 import io.github.kasecrab.razorback.voice.VoiceSession
+import kotlin.math.exp
 import kotlin.math.sin
 
 /**
@@ -107,8 +108,8 @@ class VoiceHalo(context: Context) : FrameLayout(context), Themed, Choreographer.
         if (!running) return
         val fps = when (state) {
             VoiceSession.State.USER_SPEAKING, VoiceSession.State.SPEAKING, VoiceSession.State.THINKING, VoiceSession.State.SEARCHING -> 60
-            VoiceSession.State.CONNECTING, VoiceSession.State.RECONNECTING, VoiceSession.State.IDLE -> 30
-            VoiceSession.State.LISTENING -> 20
+            // Waiting, the ring still answers the mic at once; half rate is plenty for that.
+            VoiceSession.State.CONNECTING, VoiceSession.State.RECONNECTING, VoiceSession.State.IDLE, VoiceSession.State.LISTENING -> 30
             VoiceSession.State.ERROR -> 0
         }
         if (fps == 0) {
@@ -120,15 +121,17 @@ class VoiceHalo(context: Context) : FrameLayout(context), Themed, Choreographer.
         if (lastNanos != 0L && frameTimeNanos - lastNanos < 1_000_000_000L / fps - 1_000_000L) return
         val dt = if (lastNanos == 0L) 1f / fps else ((frameTimeNanos - lastNanos) / 1e9f).coerceAtMost(0.1f)
         lastNanos = frameTimeNanos
+        // Speech sits at a few percent of full scale, so the mic is lifted with a soft
+        // knee: a quiet word already shows, a shout does not blow the ring out.
         val raw = when (state) {
-            VoiceSession.State.USER_SPEAKING -> inLevel()
-            VoiceSession.State.SPEAKING -> outLevel()
+            VoiceSession.State.LISTENING, VoiceSession.State.USER_SPEAKING -> 1f - exp(-inLevel() * 9f)
+            VoiceSession.State.SPEAKING -> 1f - exp(-outLevel() * 6f)
             else -> 0f
         }.coerceIn(0f, 1f)
-        level += (raw - level) * if (raw > level) 0.5f else 0.15f
-        if (state == VoiceSession.State.USER_SPEAKING) {
+        level += (raw - level) * if (raw > level) 0.6f else 0.12f
+        if (state == VoiceSession.State.USER_SPEAKING || state == VoiceSession.State.LISTENING) {
             ripple += dt * 1.4f
-            if (ripple >= 1f && level > 0.25f) ripple = 0f
+            if (ripple >= 1f && level > 0.3f) ripple = 0f
         }
         angle = (angle + dt * 240f) % 360f
         breath += dt * 2.2f
@@ -142,24 +145,19 @@ class VoiceHalo(context: Context) : FrameLayout(context), Themed, Choreographer.
         val cy = height / 2f
         val base = dp(ORB_DP) / 2f + dp(6f)
         when (state) {
-            VoiceSession.State.LISTENING -> {
+            VoiceSession.State.LISTENING, VoiceSession.State.USER_SPEAKING -> {
+                // Breathing while quiet; the person's voice swells the ring and sends ripples out.
                 val s = (sin(breath) + 1f) / 2f
-                ring.color = accent
-                ring.alpha = (70 + 60 * s).toInt()
-                ring.strokeWidth = dp(1.5f)
-                canvas.drawCircle(cx, cy, base + dp(1.5f) * s, ring)
-            }
-            VoiceSession.State.USER_SPEAKING -> {
                 if (ripple < 1f) {
                     ring.color = accent
-                    ring.alpha = (110 * (1f - ripple)).toInt()
+                    ring.alpha = (120 * (1f - ripple)).toInt()
                     ring.strokeWidth = dp(1.5f)
-                    canvas.drawCircle(cx, cy, base + dp(4f) + dp(14f) * ripple, ring)
+                    canvas.drawCircle(cx, cy, base + dp(5f) + dp(16f) * ripple, ring)
                 }
                 ring.color = accent
-                ring.alpha = 255
-                ring.strokeWidth = dp(2f) + dp(2f) * level
-                canvas.drawCircle(cx, cy, base + dp(6f) * level, ring)
+                ring.alpha = (80 + 50 * s + 125 * level).toInt().coerceAtMost(255)
+                ring.strokeWidth = dp(1.5f) + dp(2.5f) * level
+                canvas.drawCircle(cx, cy, base + dp(1.5f) * s + dp(8f) * level, ring)
             }
             VoiceSession.State.THINKING, VoiceSession.State.SEARCHING -> {
                 val r = base + dp(2f)
