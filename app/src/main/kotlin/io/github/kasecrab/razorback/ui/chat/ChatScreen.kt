@@ -159,7 +159,11 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         drawer.addView(panel)
         drawer.onOpenChanged = {
             context.ui().back.invalidate()
-            if (it) reloadConversations()
+            if (it) {
+                // The microphone belongs to the composer; it does not listen on through the sidebar.
+                composer.dictation.stop()
+                reloadConversations()
+            }
         }
         addView(drawer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         refreshEmpty()
@@ -202,6 +206,11 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         }
         sheet.add(R.drawable.ic_trash, context.getString(R.string.action_delete), danger = true) { engine.deleteConversation(conv) }
         sheet.show()
+    }
+
+    /** Another screen on top means nobody is typing here: dictation ends, keeping what it heard. */
+    override fun onPause() {
+        composer.dictation.stop()
     }
 
     override fun onExit() {
