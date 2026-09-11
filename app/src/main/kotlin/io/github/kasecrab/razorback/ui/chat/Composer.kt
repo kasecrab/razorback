@@ -143,6 +143,14 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         onThemeChanged(context.appTheme)
     }
 
+    /** Drops the text, the attachments and any dictation still settling into the field. */
+    fun clearDraft() {
+        dictation.release()
+        input.text.clear()
+        strip.clear()
+        updatePrimary()
+    }
+
     /** The mic button breathes and the field says so, because a colour change alone reads as nothing. */
     private fun showListening(state: Dictation.State) {
         val on = state != Dictation.State.OFF

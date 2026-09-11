@@ -81,7 +81,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
             context.getString(R.string.cd_new_chat),
         )
         bar.leading.setOnClickListener { drawer.open() }
-        bar.trailing.setOnClickListener { engine.newConversation() }
+        bar.trailing.setOnClickListener { newChat() }
         // The drawer carries its own new-chat button; the bar's fades out as the drawer slides in.
         drawer.onFraction = { f ->
             bar.trailing.alpha = 1f - f
@@ -141,7 +141,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
         panel.newChat.setOnClickListener {
             drawer.close()
-            engine.newConversation()
+            newChat()
         }
         panel.onOpen = {
             drawer.close()
@@ -189,6 +189,12 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
             val convs = app.store.listConversations(panel.search.text)
             panel.setConversations(convs, engine.conversation?.id)
         }
+    }
+
+    /** A new chat starts clean: whatever was typed or attached for the old one goes with it. */
+    private fun newChat() {
+        composer.clearDraft()
+        engine.newConversation()
     }
 
     private fun refreshTitle() {
