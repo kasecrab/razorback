@@ -216,11 +216,27 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
             return
         }
         val host = remote.machine?.host ?: context.getString(R.string.remote)
-        val guess = remote.sessions.maxByOrNull { it.startedMs }?.cwd ?: ""
-        InputSheet(context, context.getString(R.string.remote_new_dir, host), guess) { cwd ->
-            drawer.close()
-            remote.newSession(cwd)
-        }.show()
+        val places = remote.startPlaces()
+        val typed = { prefill: String ->
+            InputSheet(context, context.getString(R.string.remote_new_dir, host), prefill) { cwd ->
+                drawer.close()
+                remote.newSession(cwd)
+            }.show()
+        }
+        if (places.size <= 1) {
+            typed(places.firstOrNull() ?: "")
+            return
+        }
+        // The machine's roots first, then where its sessions already run; anywhere under a root is allowed too.
+        val sheet = ActionSheet(context).header(context.getString(R.string.remote_new_session), context.getString(R.string.remote_new_dir, host))
+        for (place in places.take(8)) {
+            sheet.add(R.drawable.ic_file, place) {
+                drawer.close()
+                remote.newSession(place)
+            }
+        }
+        sheet.add(R.drawable.ic_edit, context.getString(R.string.remote_other_dir)) { typed(places.first()) }
+        sheet.show()
     }
 
     /** The paired machine's group for the sidebar, or nothing when there is no machine or a search is on. */
@@ -228,7 +244,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         val remote = app.remote
         if (!remote.paired || panel.search.text.isNotBlank()) return null
         val host = remote.machine?.host ?: context.getString(R.string.remote_sessions)
-        return ChatListAdapter.Remote(host, remote.ready(), remote.sessions, canStart = remote.machine?.holder != "tui")
+        return ChatListAdapter.Remote(host, remote.ready(), remote.sessions, canStart = remote.canStart)
     }
 
     private fun reloadConversations() {

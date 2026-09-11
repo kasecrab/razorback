@@ -66,7 +66,8 @@ object Frames {
 
     // ---- what the desktop says, once a frame is open --------------------
 
-    data class Machine(val host: String, val os: String, val version: String, val holder: String)
+    /** [roots] are the tops of the directory trees a session may be started in; empty for a window, which starts none. */
+    data class Machine(val host: String, val os: String, val version: String, val holder: String, val roots: List<String> = emptyList())
 
     data class Session(
         val id: String,
@@ -105,7 +106,8 @@ object Frames {
         data class Events(val session: String, val events: List<JSONObject>) : FromDesk()
         data class Ask(val question: Question, val isTool: Boolean) : FromDesk()
         data class Answered(val session: String, val id: Long, val by: String) : FromDesk()
-        data class Ack(val ok: Boolean, val error: String?) : FromDesk()
+        /** [session] is the id a new or resumed session ended up with, present only when one was started. */
+        data class Ack(val ok: Boolean, val error: String?, val session: String? = null) : FromDesk()
         data class Notice(val text: String) : FromDesk()
         data class Blob(val id: String, val mime: String, val seq: Int, val last: Boolean, val b64: String) : FromDesk()
         data class Bye(val reason: String) : FromDesk()
@@ -125,6 +127,7 @@ object Frames {
                     os = o.optString("os"),
                     version = o.optString("ah_version"),
                     holder = o.optString("holder"),
+                    roots = strings(o.optJSONArray("roots")),
                 ),
             )
             "sessions" -> FromDesk.Sessions(readSessions(o.optJSONArray("list")))
@@ -173,6 +176,7 @@ object Frames {
             "ack" -> FromDesk.Ack(
                 o.optBoolean("ok"),
                 if (o.isNull("error")) null else o.optString("error"),
+                if (o.isNull("session")) null else o.optString("session").ifBlank { null },
             )
             "notice" -> FromDesk.Notice(o.optString("text"))
             "blob" -> FromDesk.Blob(
@@ -257,6 +261,13 @@ object Frames {
         if (array == null) return emptyList()
         val out = ArrayList<JSONObject>(array.length())
         for (i in 0 until array.length()) array.optJSONObject(i)?.let { out.add(it) }
+        return out
+    }
+
+    private fun strings(array: JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        val out = ArrayList<String>(array.length())
+        for (i in 0 until array.length()) array.optString(i).takeIf { it.isNotBlank() }?.let { out.add(it) }
         return out
     }
 

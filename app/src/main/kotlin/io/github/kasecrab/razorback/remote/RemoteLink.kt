@@ -161,6 +161,17 @@ class RemoteLink(
         client?.send(Frames.resume(session))
     }
 
+    /** Where the machine will start a session: its offered roots, then where its sessions already run. */
+    fun startPlaces(): List<String> {
+        val out = LinkedHashSet<String>()
+        machine?.roots?.forEach { out.add(it) }
+        sessions.sortedByDescending { it.startedMs }.forEach { if (it.cwd.isNotBlank()) out.add(it.cwd) }
+        return out.toList()
+    }
+
+    /** Whether the machine will start sessions at all: a window publishes the one it has and no others. */
+    val canStart: Boolean get() = machine?.let { it.roots.isNotEmpty() || it.holder == "daemon" } ?: true
+
     /** Start a session in [cwd] on the machine; the one that appears is announced through [Watcher.onSessionStarted]. */
     fun newSession(cwd: String) {
         openNewest = true
@@ -225,11 +236,19 @@ class RemoteLink(
                 if (pending?.id == payload.id) pending = null
                 watchers.forEach { it.onAnswered(payload.id, payload.by) }
             }
-            is Frames.FromDesk.Ack ->
+            is Frames.FromDesk.Ack -> {
+                val started = payload.session
+                if (started != null) {
+                    // The machine names the session it started; the list that follows may
+                    // not have it yet, since a new session is not on disk until its first turn.
+                    openNewest = false
+                    watchers.forEach { it.onSessionStarted(started) }
+                }
                 payload.error?.let { why ->
                     openNewest = false
                     watchers.forEach { it.onTrouble(why) }
                 }
+            }
             is Frames.FromDesk.Notice -> watchers.forEach { it.onTrouble(payload.text) }
             is Frames.FromDesk.Bye -> {
                 val text = when (payload.reason) {

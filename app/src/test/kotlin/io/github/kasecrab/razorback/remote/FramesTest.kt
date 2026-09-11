@@ -127,6 +127,18 @@ class FramesTest {
     }
 
     @Test
+    fun aHelloNamesWhereSessionsMayStartAndAnAckNamesTheOneStarted() {
+        val hello = Frames.readPayload("""{"k":"hello","host":"box","os":"linux","ah_version":"1","proto":1,"holder":"daemon","roots":["/home/me","/srv"]}""".toByteArray()) as Frames.FromDesk.Hello
+        assertEquals(listOf("/home/me", "/srv"), hello.machine.roots)
+        val window = Frames.readPayload("""{"k":"hello","host":"box","os":"linux","ah_version":"1","proto":1,"holder":"tui"}""".toByteArray()) as Frames.FromDesk.Hello
+        assertTrue(window.machine.roots.isEmpty())
+        val started = Frames.readPayload("""{"k":"ack","cmd_seq":7,"ok":true,"session":"701bbd5f6c19ab0d"}""".toByteArray()) as Frames.FromDesk.Ack
+        assertEquals("701bbd5f6c19ab0d", started.session)
+        val plain = Frames.readPayload("""{"k":"ack","cmd_seq":8,"ok":true}""".toByteArray()) as Frames.FromDesk.Ack
+        assertNull(plain.session)
+    }
+
+    @Test
     fun aQuestionCarriesItsChoicesAndHowManyQuestionsThereAre() {
         val payload = Frames.readPayload(
             """{"k":"ask_user","session":"abc","id":3,"ask":{"questions":[

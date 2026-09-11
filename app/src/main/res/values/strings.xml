@@ -274,6 +274,7 @@
     <string name="remote_sessions">Remote sessions</string>
     <string name="remote_new_session">New session</string>
     <string name="remote_new_dir">Directory on %s</string>
+    <string name="remote_other_dir">Another directory…</string>
     <string name="remote_offline">Not connected</string>
     <string name="remote_nothing_open">Nothing open</string>
     <string name="remote_not_running">%s · not running</string>
