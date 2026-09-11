@@ -258,11 +258,14 @@ class VoiceSession(
         var total = 0
         var known = 0
         for (w in words(transcript)) {
+            // "A", "to" and "is" are in every reply; they say nothing about whose speech this is.
+            if (w.length < 3) continue
             total++
             // Echo is muffled, so a word counts when its stem matches too.
             if (w in spokenWords || (w.length >= 4 && w.substring(0, 4) in spokenStems)) known++
         }
-        return total > 0 && known * 10 >= total * 6
+        // Only tiny words around speech is the tail of the echo, not a turn.
+        return total == 0 || known * 10 >= total * 6
     }
 
     private fun wordCount(text: String): Int {
@@ -313,15 +316,20 @@ class VoiceSession(
     private val outRecent = FloatArray(OUT_WINDOW)
     private var outAt = 0
     private var passUntil = 0L
+    private var gateChunks = 0
     private val silence = ByteArray(MicCapture.CHUNK_BYTES)
 
     /**
-     * While the assistant talks, the phone hears it too. Without a working echo canceller
-     * the transcriber would faithfully write the reply down as the person's next turn. So
-     * the first half second of every reply, when the person has just finished speaking,
-     * measures how much of the speaker's level leaks in; after that a chunk goes through
-     * only when the microphone is clearly louder than that leak, which is the person
-     * cutting in. Everything else is sent as silence so the transcriber's timing holds.
+     * While the assistant talks, the phone hears it too. On the call path the phone's own
+     * echo canceller takes the speaker out of the microphone almost entirely; this gate
+     * covers what is left, and phones whose canceller does less. The first half second of
+     * every stretch of speech, when the person has just finished talking, measures how
+     * much of the speaker's level leaks in; after that a chunk goes through when the
+     * microphone is clearly louder than that leak, which is the person cutting in, and
+     * for a moment after, so their words are not chopped. Everything else is sent as
+     * silence so the transcriber's timing holds. The leak is measured only in that window:
+     * learning from later chunks judged to be echo turned quiet speech into a higher
+     * estimate, which shut the gate on the person altogether.
      */
     private fun hear(buf: ByteArray, len: Int) {
         if (passes(len)) stt.audio(buf, len) else stt.audio(silence, len)
@@ -341,18 +349,16 @@ class VoiceSession(
         val heard = mic.level.get().toFloat()
         val since = now - playbackStartedAt
         if (since < CALIBRATE_MS) {
-            echoRatio = maxOf(echoRatio, heard / outHold)
+            echoRatio = maxOf(echoRatio, minOf(heard / outHold, ECHO_RATIO_CAP))
             return false
         }
         val expected = echoRatio * outHold
-        if (heard > expected * MARGIN + 40f) {
+        if (Log.ON && ++gateChunks % 6 == 0) Log.d { "gate: heard $heard out $outHold ratio $echoRatio expected $expected" }
+        if (heard > expected * MARGIN + 20f) {
             passUntil = now + HANGOVER_MS
             return true
         }
-        // Judged echo: let the estimate creep up so a loud syllable later does not fool it.
-        echoRatio = maxOf(echoRatio, 0.85f * heard / outHold)
-        // The tail of a cut-in goes through only while it is still above the echo itself.
-        return now < passUntil && heard > expected * 1.1f + 20f
+        return now < passUntil
     }
 
     private var askedAt = 0L
@@ -605,12 +611,14 @@ class VoiceSession(
         /** Deepgram drops a stream that goes quiet for about ten seconds; this keeps it well inside that. */
         const val KEEP_ALIVE_MS = 5000L
         const val ECHO_RATIO_FLOOR = 0.05f
+        /** Louder than this share of the speaker is not echo any canceller leaves; it is the person. */
+        const val ECHO_RATIO_CAP = 0.8f
         const val CALIBRATE_MS = 600L
         const val HANGOVER_MS = 700L
         /** Track buffer, air and input latency together; the last word is still arriving well after the end marker. */
         const val ECHO_TAIL_MS = 1200L
         const val ECHO_WORDS_MS = 3000L
-        const val MARGIN = 2.2f
+        const val MARGIN = 2f
         /** Chunks of 80 ms: 640 ms of recent speaker level. */
         const val OUT_WINDOW = 8
         const val DOUBTFUL = 0.6f
