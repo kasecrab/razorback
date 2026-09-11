@@ -7,6 +7,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import io.github.kasecrab.razorback.ui.core.Fonts
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.Type
 import io.github.kasecrab.razorback.ui.core.dp
@@ -52,6 +53,7 @@ class ActionSheet(context: Context) : Sheet(context) {
         text.text = label
         row.addView(text, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         row.setOnClickListener {
+            if (danger) Haptics.heavy(row) else Haptics.tap(row)
             dismiss()
             onClick()
         }

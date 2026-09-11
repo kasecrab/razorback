@@ -90,7 +90,12 @@ class ImageViewerScreen(context: Context, private val path: String) : Screen(con
                     false
                 }
             }
-            if (ok) Toast.makeText(context, R.string.image_saved, Toast.LENGTH_SHORT).show()
+            if (ok) {
+                io.github.kasecrab.razorback.ui.core.Haptics.confirm(save)
+                Toast.makeText(context, R.string.image_saved, Toast.LENGTH_SHORT).show()
+            } else {
+                io.github.kasecrab.razorback.ui.core.Haptics.reject(save)
+            }
         }
     }
 }

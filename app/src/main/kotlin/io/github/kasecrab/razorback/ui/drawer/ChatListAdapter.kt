@@ -125,6 +125,12 @@ class ChatListAdapter(
             onThemeChanged(context.appTheme)
         }
 
+        override fun performClick(): Boolean {
+            val handled = super.performClick()
+            if (handled) io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
+            return handled
+        }
+
         fun bind(c: Conversation, current: Boolean) {
             text = c.title
             selected = current

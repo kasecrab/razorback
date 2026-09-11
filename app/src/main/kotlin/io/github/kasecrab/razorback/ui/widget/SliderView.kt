@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import io.github.kasecrab.razorback.ui.core.Theme
@@ -72,7 +71,7 @@ class SliderView(context: Context) : View(context), Themed {
             val s = Math.round((v - min) / step)
             if (s != lastStep) {
                 lastStep = s
-                performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
             }
         }
         if (v != value) {

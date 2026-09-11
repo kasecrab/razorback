@@ -4,7 +4,6 @@ import android.content.Context
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.FrameLayout
 import android.view.inputmethod.EditorInfo
@@ -12,6 +11,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import io.github.kasecrab.razorback.R
 import io.github.kasecrab.razorback.ui.core.Fonts
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.Themed
 import io.github.kasecrab.razorback.ui.core.Type
@@ -128,9 +128,16 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         })
         primary.setOnClickListener {
             when {
-                streaming -> onStop?.invoke()
-                input.text.isBlank() && strip.items.isEmpty() -> onVoiceMode?.invoke()
+                streaming -> {
+                    Haptics.tap(primary)
+                    onStop?.invoke()
+                }
+                input.text.isBlank() && strip.items.isEmpty() -> {
+                    Haptics.confirm(primary)
+                    onVoiceMode?.invoke()
+                }
                 else -> {
+                    Haptics.confirm(primary)
                     val text = input.text.toString().trim()
                     val pending = ArrayList(strip.items)
                     input.text.clear()
@@ -164,7 +171,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
                 Dictation.State.LISTENING -> R.string.dictation_listening
             },
         )
-        dictate.performHapticFeedback(if (on) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.CONTEXT_CLICK)
+        if (on) Haptics.confirm(dictate) else Haptics.tap(dictate)
     }
 
     fun updatePrimary() {

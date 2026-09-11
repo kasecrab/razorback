@@ -19,6 +19,7 @@ object KeyNeeded {
 
     /** The saved key was turned away: say so and lead to the field, instead of a bare error line. */
     fun rejected(context: Context, name: String) {
+        Haptics.reject(context.ui().root)
         val vendor = vendorName(name)
         ActionSheet(context)
             .header(context.getString(R.string.key_rejected_title, vendor), context.getString(R.string.key_rejected_text, vendor))

@@ -16,6 +16,7 @@ import io.github.kasecrab.razorback.provider.openrouter.OpenRouterAccount
 import io.github.kasecrab.razorback.tools.search.BraveSearch
 import io.github.kasecrab.razorback.tools.search.ExaSearch
 import io.github.kasecrab.razorback.ui.core.Fonts
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.core.Keyboard
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.Theme
@@ -296,8 +297,14 @@ class ProvidersScreen(context: Context) : Screen(context) {
             job = context.uiScope.launch {
                 val result = runCatching { withContext(Dispatchers.IO) { probe(key) } }
                 busy = false
-                result.onSuccess { accepted() }
-                result.onFailure { failure = reason(it) }
+                result.onSuccess {
+                    accepted()
+                    Haptics.confirm(input)
+                }
+                result.onFailure {
+                    failure = reason(it)
+                    Haptics.reject(input)
+                }
                 render()
                 syncSaveBar()
             }

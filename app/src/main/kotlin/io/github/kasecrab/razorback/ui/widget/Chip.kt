@@ -5,6 +5,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.widget.TextView
 import io.github.kasecrab.razorback.ui.core.Fonts
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.Themed
 import io.github.kasecrab.razorback.ui.core.Type
@@ -56,6 +57,12 @@ class Chip(context: Context) : TextView(context), Themed {
         gravity = Gravity.CENTER_VERTICAL or Gravity.START
         minimumHeight = dp(32)
         onThemeChanged(context.appTheme)
+    }
+
+    override fun performClick(): Boolean {
+        val handled = super.performClick()
+        if (handled) Haptics.tick(this)
+        return handled
     }
 
     override fun onThemeChanged(theme: Theme) {

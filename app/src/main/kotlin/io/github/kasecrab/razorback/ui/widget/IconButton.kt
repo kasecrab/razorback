@@ -64,6 +64,12 @@ class IconButton(context: Context) : ImageView(context), Themed {
         }
     }
 
+    override fun performClick(): Boolean {
+        val handled = super.performClick()
+        if (handled) io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
+        return handled
+    }
+
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         alpha = if (enabled) 1f else 0.38f

@@ -178,8 +178,14 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
                     val vt = velocity!!
                     vt.computeCurrentVelocity(1000)
                     val vy = vt.yVelocity
-                    if (vy > 1200f || (fraction < 0.5f && vy > -600f)) dismiss() else spring.animateTo(1f, -vy / panel.height)
+                    if (vy > 1200f || (fraction < 0.5f && vy > -600f)) {
+                        io.github.kasecrab.razorback.ui.core.Haptics.settle(this)
+                        dismiss()
+                    } else {
+                        spring.animateTo(1f, -vy / panel.height)
+                    }
                 } else if (ev.y < panel.top + panel.translationY) {
+                    io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
                     dismiss()
                 }
                 release()

@@ -11,6 +11,7 @@ import io.github.kasecrab.razorback.R
 import io.github.kasecrab.razorback.core.Fmt
 import io.github.kasecrab.razorback.model.ModelInfo
 import io.github.kasecrab.razorback.ui.core.Fonts
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.Themed
 import io.github.kasecrab.razorback.ui.core.Type
@@ -54,6 +55,12 @@ class ModelRow(context: Context) : LinearLayout(context), Themed {
         star.contentDescription = context.getString(R.string.cd_favorite)
         addView(star, LayoutParams(dp(44), dp(44)))
         onThemeChanged(context.appTheme)
+    }
+
+    override fun performClick(): Boolean {
+        val handled = super.performClick()
+        if (handled) Haptics.tick(this)
+        return handled
     }
 
     /** [note] goes in front of the price: a score, an age, whatever the list is ordered by. */

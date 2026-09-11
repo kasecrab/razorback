@@ -170,6 +170,8 @@
     <string name="text_size">Text size</string>
     <string name="reduce_motion">Reduce motion</string>
     <string name="reduce_motion_hint">Skip transitions and idle animation</string>
+    <string name="haptics">Haptic feedback</string>
+    <string name="haptics_hint">A light touch on taps and toggles, firmer when something is sent, saved or refused</string>
     <string name="backup">Backup</string>
     <string name="backup_subtitle">Export or import chats and settings</string>
     <string name="backup_export_full">Export everything</string>

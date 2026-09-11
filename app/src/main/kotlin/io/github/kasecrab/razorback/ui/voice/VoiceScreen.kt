@@ -21,6 +21,7 @@ import io.github.kasecrab.razorback.ui.core.Type
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
 import io.github.kasecrab.razorback.ui.core.ui
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.orb.Orb
 import io.github.kasecrab.razorback.ui.orb.OrbView
 import io.github.kasecrab.razorback.ui.orb.Orbs
@@ -46,6 +47,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     private val end = IconButton(context)
     private val controls = LinearLayout(context)
     private var muted = false
+    private var shownState = VoiceSession.State.IDLE
     private var followingSpeech = false
     private val speechFrame = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -104,7 +106,10 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         end.filled = true
         end.tone = IconButton.Tone.PRIMARY
         end.contentDescription = context.getString(R.string.voice_end)
-        end.setOnClickListener { context.nav.pop() }
+        end.setOnClickListener {
+            Haptics.heavy(end)
+            context.nav.pop()
+        }
         controls.addView(end, LinearLayout.LayoutParams(dp(52), dp(52)).apply { marginStart = dp(36) })
         column.addView(controls, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -163,6 +168,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
     private fun toggleMute() {
         muted = !muted
+        Haptics.toggle(mute, muted)
         voice.setMuted(muted)
         mute.iconRes = if (muted) R.drawable.ic_mic_off else R.drawable.ic_mic
         mute.tone = if (muted) IconButton.Tone.DANGER else IconButton.Tone.PRIMARY
@@ -182,7 +188,15 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
     // VoiceSession.Listener
 
+    /** One tick when what was said has been taken, another when a cut-in landed, so the ear need not watch the screen. */
     override fun onStateChanged(state: VoiceSession.State) {
+        val was = shownState
+        shownState = state
+        when {
+            was == VoiceSession.State.USER_SPEAKING && (state == VoiceSession.State.THINKING || state == VoiceSession.State.SEARCHING) -> Haptics.tick(this)
+            was == VoiceSession.State.SPEAKING && state == VoiceSession.State.USER_SPEAKING -> Haptics.tick(this)
+            state == VoiceSession.State.ERROR && was != VoiceSession.State.ERROR -> Haptics.reject(this)
+        }
         status.text = when (state) {
             VoiceSession.State.IDLE, VoiceSession.State.CONNECTING -> context.getString(R.string.voice_connecting)
             VoiceSession.State.LISTENING -> context.getString(R.string.voice_listening)

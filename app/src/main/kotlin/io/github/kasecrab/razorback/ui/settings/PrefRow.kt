@@ -52,6 +52,12 @@ class NavRow(context: Context) : LinearLayout(context), Themed {
         onThemeChanged(context.appTheme)
     }
 
+    override fun performClick(): Boolean {
+        val handled = super.performClick()
+        if (handled) io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
+        return handled
+    }
+
     fun set(iconRes: Int, titleText: CharSequence, subtitleText: CharSequence? = null) {
         this.iconRes = iconRes
         title.text = titleText

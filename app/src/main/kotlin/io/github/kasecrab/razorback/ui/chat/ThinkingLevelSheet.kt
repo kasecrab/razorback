@@ -70,6 +70,7 @@ class ThinkingLevelSheet(context: Context) : Sheet(context) {
             check.scaleType = ImageView.ScaleType.CENTER
             v.addView(check, LinearLayout.LayoutParams(dp(24), dp(24)))
             v.setOnClickListener {
+                io.github.kasecrab.razorback.ui.core.Haptics.tick(v)
                 app.engine.thinking = level
                 dismiss()
             }

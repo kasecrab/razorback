@@ -102,7 +102,10 @@ class AssistantMessageView(context: Context) : LinearLayout(context), Themed {
         more.contentDescription = context.getString(R.string.cd_more)
         more.setOnClickListener { onMenu?.invoke() }
         header.addView(more, LayoutParams(dp(36), dp(36)))
-        header.setOnClickListener { usage.visibility = if (usage.visibility == View.VISIBLE) View.GONE else View.VISIBLE }
+        header.setOnClickListener {
+            io.github.kasecrab.razorback.ui.core.Haptics.tick(header)
+            usage.visibility = if (usage.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
         addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         usage.typeface = Fonts.regular

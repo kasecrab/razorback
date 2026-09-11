@@ -166,8 +166,10 @@ class DrawerHost(context: Context) : ViewGroup(context), Themed, BackHandler {
                         abs(v) > FLING_PX_PER_S -> if (v > 0) 1f else 0f
                         else -> if (fraction > 0.5f) 1f else 0f
                     }
+                    io.github.kasecrab.razorback.ui.core.Haptics.settle(this)
                     settle(target, v / panelWidth)
                 } else if (fraction > 0f && ev.x > panelWidth) {
+                    io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
                     close()
                 }
                 release()

@@ -8,6 +8,7 @@ import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import android.widget.EditText
 import android.widget.Toast
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.core.MicPermission
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.core.Keys
@@ -60,8 +61,12 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
 
     fun start() {
         if (mic.isRunning) return
-        if (!io.github.kasecrab.razorback.ui.core.KeyNeeded.check(context, Secrets.DEEPGRAM)) return
+        if (!io.github.kasecrab.razorback.ui.core.KeyNeeded.check(context, Secrets.DEEPGRAM)) {
+            Haptics.reject(edit)
+            return
+        }
         if (!io.github.kasecrab.razorback.core.Net.online(context)) {
+            Haptics.reject(edit)
             Toast.makeText(context, io.github.kasecrab.razorback.core.Net.OFFLINE, Toast.LENGTH_SHORT).show()
             return
         }
@@ -137,6 +142,7 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
     }
 
     override fun onError(message: String) {
+        Haptics.reject(edit)
         if (message == io.github.kasecrab.razorback.voice.DeepgramAccount.KEY_REFUSED) {
             stop()
             io.github.kasecrab.razorback.ui.core.KeyNeeded.rejected(context, Secrets.DEEPGRAM)

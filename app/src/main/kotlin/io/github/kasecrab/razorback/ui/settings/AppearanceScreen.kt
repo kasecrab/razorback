@@ -82,7 +82,10 @@ class AppearanceScreen(context: Context) : Screen(context) {
 
         val motion = SwitchRow(context)
         motion.set(context.getString(R.string.reduce_motion), context.getString(R.string.reduce_motion_hint), prefs[Keys.REDUCE_MOTION]) { prefs[Keys.REDUCE_MOTION] = it }
+        val haptics = SwitchRow(context)
+        haptics.set(context.getString(R.string.haptics), context.getString(R.string.haptics_hint), prefs[Keys.HAPTICS]) { prefs[Keys.HAPTICS] = it }
         list.addView(motion, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+        list.addView(haptics, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         val scroll = ScrollView(context)
         scroll.isVerticalScrollBarEnabled = false
@@ -99,7 +102,10 @@ class AppearanceScreen(context: Context) : Screen(context) {
 
     private fun addDot(color: Int, spec: String, wallpaper: Boolean = false) {
         val d = Dot(context, color, wallpaper)
-        d.setOnClickListener { prefs[Keys.ACCENT] = spec }
+        d.setOnClickListener {
+            io.github.kasecrab.razorback.ui.core.Haptics.tick(d)
+            prefs[Keys.ACCENT] = spec
+        }
         dots.addView(d, LinearLayout.LayoutParams(dp(36), dp(36)).apply { marginEnd = dp(10) })
         dotViews.add(d to spec)
     }

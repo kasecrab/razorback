@@ -8,6 +8,7 @@ import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.R
 import io.github.kasecrab.razorback.model.ModelInfo
 import io.github.kasecrab.razorback.model.ThinkingLevel
+import io.github.kasecrab.razorback.ui.core.Haptics
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
@@ -97,7 +98,7 @@ class ModelsSettingsScreen(context: Context) : Screen(context) {
             val row = ModelRow(context)
             val m = info(f.id)
             row.bind(m, selected = f.id == model, favorite = true)
-            row.star.setOnClickListener { app.favorites.toggle(f.id) }
+            row.star.setOnClickListener { Haptics.toggle(row.star, app.favorites.toggle(f.id)) }
             row.setOnClickListener { menu(i, f.id, m) }
             favs.addView(row, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         }

@@ -61,6 +61,7 @@ class ToolCardView(context: Context) : LinearLayout(context), Themed {
         body.visibility = View.GONE
         addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         header.setOnClickListener {
+            io.github.kasecrab.razorback.ui.core.Haptics.tick(header)
             expanded = !expanded
             body.visibility = if (expanded && body.text.isNotEmpty()) View.VISIBLE else View.GONE
             chevron.rotation = if (expanded) 180f else 0f
