@@ -30,6 +30,9 @@ class TtsLink(
         fun onFlushed()
         fun onCleared()
         fun onError(message: String)
+
+        /** The voice in use takes no speed parameter; the phone has to pace it instead. */
+        fun onSpeedUnavailable() {}
     }
 
     var listener: Listener? = null
@@ -40,6 +43,10 @@ class TtsLink(
     private val queue = ArrayList<String>()
     @Volatile private var armed = false
     private var backoffMs = 400L
+    /** Set once a voice refused the speed parameter, and cleared when the voice changes. */
+    private var speedRefused = false
+    private var speedSent = false
+    private var lastModel = ""
 
     fun warm() {
         if (armed) return
@@ -102,11 +109,17 @@ class TtsLink(
     }
 
     private fun url(): String {
+        val m = model()
+        if (m != lastModel) {
+            lastModel = m
+            speedRefused = false
+        }
         val sb = StringBuilder("wss://api.deepgram.com/v1/speak?model=")
-        sb.append(URLEncoder.encode(model(), "UTF-8"))
+        sb.append(URLEncoder.encode(m, "UTF-8"))
         sb.append("&encoding=linear16&sample_rate=").append(Playback.SAMPLE_RATE)
-        val s = Speed.server(speed())
-        if (s != 1f) sb.append("&speed=").append(String.format(java.util.Locale.US, "%.2f", s))
+        val s = if (speedRefused) 1f else Speed.server(speed())
+        speedSent = s != 1f
+        if (speedSent) sb.append("&speed=").append(String.format(java.util.Locale.US, "%.2f", s))
         return sb.toString()
     }
 
@@ -159,6 +172,13 @@ class TtsLink(
         socket.connect()
     }
 
+    /** Deepgram puts the reason at err_msg; the status is the fallback. */
+    private fun refusal(e: HandshakeException): String = try {
+        org.json.JSONObject(e.body).optString("err_msg").ifEmpty { "HTTP ${e.status}" }
+    } catch (_: org.json.JSONException) {
+        "HTTP ${e.status}"
+    }
+
     private fun dropped(socket: WebSocketClient, error: Throwable?) {
         if (ws !== socket) return
         ws = null
@@ -166,6 +186,20 @@ class TtsLink(
         if (error is HandshakeException && (error.status == 401 || error.status == 403)) {
             armed = false
             main.post { listener?.onError("Deepgram refused the key") }
+            return
+        }
+        if (error is HandshakeException && error.status == 400 && speedSent && !speedRefused) {
+            // Older voices take no speed parameter; say the same words at their own pace.
+            speedRefused = true
+            Log.w("tts: ${lastModel} refused the speed parameter, retrying without it")
+            main.post { listener?.onSpeedUnavailable() }
+            dial()
+            return
+        }
+        if (error is HandshakeException && error.status in 400..499) {
+            // Anything else the service refuses is said out loud rather than retried in silence.
+            armed = false
+            main.post { listener?.onError("Deepgram: " + refusal(error)) }
             return
         }
         // Reconnect straight away if something is waiting; otherwise the next speak() dials.

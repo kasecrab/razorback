@@ -246,6 +246,8 @@ class VoiceSession(
 
     override fun onError(message: String) = fail(message)
 
+    override fun onSpeedUnavailable() = playback.setStretch(Speed.stretch(prefs[Keys.VOICE_SPEED]) * Speed.server(prefs[Keys.VOICE_SPEED]))
+
     /** Barge-in: the person started talking over the reply. */
     private fun interrupt() {
         tts.clear()

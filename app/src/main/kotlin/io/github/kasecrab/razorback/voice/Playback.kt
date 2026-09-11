@@ -56,7 +56,8 @@ class Playback(private val onDrained: () -> Unit) {
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build(),
             )
-            .setBufferSizeInBytes(maxOf(min, BYTES_PER_MS * 200))
+            // A stretched track eats source audio faster, so it gets room for up to four times the pace.
+            .setBufferSizeInBytes(maxOf(min, BYTES_PER_MS * 200) * (if (stretching) 4 else 1))
             .setTransferMode(AudioTrack.MODE_STREAM)
             // The fast mixer cannot time-stretch, so a stretched track takes the ordinary path.
             .setPerformanceMode(if (stretching) AudioTrack.PERFORMANCE_MODE_NONE else AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
@@ -66,13 +67,7 @@ class Playback(private val onDrained: () -> Unit) {
             t.release()
             return
         }
-        if (stretching) {
-            try {
-                t.playbackParams = PlaybackParams().setSpeed(stretch).setPitch(1f).setAudioFallbackMode(PlaybackParams.AUDIO_FALLBACK_MODE_DEFAULT)
-            } catch (e: IllegalArgumentException) {
-                Log.w("time stretch refused: ${e.message}")
-            }
-        }
+        if (stretching) applyStretch(t, stretch)
         track = t
         headBase = 0L
         enqueuedBytes.set(0)
@@ -80,6 +75,19 @@ class Playback(private val onDrained: () -> Unit) {
         val th = Thread({ loop(t) }, "playback")
         thread = th
         th.start()
+    }
+
+    /** Changes the pace of what is already playing; a fast track cannot stretch and keeps its pace. */
+    fun setStretch(stretch: Float) {
+        track?.let { applyStretch(it, stretch.coerceIn(1f, 4f)) }
+    }
+
+    private fun applyStretch(t: AudioTrack, stretch: Float) {
+        try {
+            t.playbackParams = PlaybackParams().setSpeed(stretch).setPitch(1f).setAudioFallbackMode(PlaybackParams.AUDIO_FALLBACK_MODE_DEFAULT)
+        } catch (e: IllegalArgumentException) {
+            Log.w("time stretch refused: ${e.message}")
+        }
     }
 
     fun enqueue(data: ByteArray, offset: Int = 0, length: Int = data.size - offset) {
