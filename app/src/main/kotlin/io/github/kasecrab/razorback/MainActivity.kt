@@ -121,10 +121,14 @@ class MainActivity : Activity() {
         super.onStop()
         if (isChangingConfigurations) return
         if (App.instance.engine.isStreaming) TurnService.start(this)
-        // A session on another machine goes on working either way; what needs
-        // keeping alive is the socket that hears about it.
-        if (App.instance.remote.paired) {
+        // A session being watched on another machine goes on working either way; what
+        // needs keeping alive is the socket that hears about it. Nothing watched, nothing
+        // kept: the link is dropped and picked up again when the app comes back.
+        val remote = App.instance.remote
+        if (remote.paired && remote.attached.isNotEmpty()) {
             io.github.kasecrab.razorback.bg.RemoteService.start(this)
+        } else {
+            remote.stop()
         }
     }
 

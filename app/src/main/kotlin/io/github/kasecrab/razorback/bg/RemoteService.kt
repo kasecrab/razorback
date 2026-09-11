@@ -21,6 +21,7 @@ import io.github.kasecrab.razorback.remote.RemoteLink
 class RemoteService : Service(), RemoteLink.Watcher {
 
     private val link: RemoteLink get() = App.instance.remote
+    private var watching = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -40,12 +41,16 @@ class RemoteService : Service(), RemoteLink.Watcher {
             Notifs.watchingRemote(this, link.machine?.host ?: getString(R.string.app_name)),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
         )
-        if (!link.paired) {
+        // Only a session being watched is worth a notification and a socket held open.
+        if (!link.paired || link.attached.isEmpty()) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
-        link.add(this)
+        if (!watching) {
+            watching = true
+            link.add(this)
+        }
         link.start()
         return START_NOT_STICKY
     }
@@ -56,7 +61,8 @@ class RemoteService : Service(), RemoteLink.Watcher {
     }
 
     override fun onDestroy() {
-        link.remove(this)
+        if (watching) link.remove(this)
+        watching = false
         super.onDestroy()
     }
 
