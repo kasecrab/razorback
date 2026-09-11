@@ -123,7 +123,6 @@ class VoiceCatalog(dir: File, private val key: () -> String?) {
                         tags = tags.filter { it != "feminine" && it != "masculine" },
                         language = language,
                         color = color,
-                        sample = meta?.str("sample"),
                         architecture = m.str("architecture") ?: "",
                     ),
                 )

@@ -15,8 +15,6 @@ class Voice(
     val language: String,
     /** Deepgram's colour for the voice, 0 when unknown. */
     val color: Int,
-    /** Deepgram's own recording of the voice, or null. */
-    val sample: String?,
     val architecture: String,
 ) {
     val traits: String get() = tags.joinToString(", ").replaceFirstChar { it.uppercase() }
@@ -25,7 +23,7 @@ class Voice(
         /** A stand-in for an id the catalogue has not been fetched for yet. */
         fun placeholder(id: String): Voice = Voice(
             id, id.removePrefix("aura-2-").removePrefix("aura-").substringBefore('-').replaceFirstChar { it.uppercase() },
-            null, "", "", emptyList(), id.substringAfterLast('-'), 0, null, if (id.startsWith("aura-2-")) "aura-2" else "aura",
+            null, "", "", emptyList(), id.substringAfterLast('-'), 0, if (id.startsWith("aura-2-")) "aura-2" else "aura",
         )
     }
 }

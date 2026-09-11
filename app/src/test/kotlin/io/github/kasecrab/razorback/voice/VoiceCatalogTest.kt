@@ -35,7 +35,6 @@ class VoiceCatalogTest {
         assertNull(mystery.feminine)
         assertEquals("", mystery.accent)
         assertEquals("xx", mystery.language)
-        assertNull(mystery.sample)
         assertEquals(0, mystery.color)
     }
 
@@ -50,10 +49,9 @@ class VoiceCatalogTest {
     }
 
     @Test
-    fun colourAndSampleAreOptional() {
+    fun colourIsOptional() {
         val voices = VoiceCatalog.parse(JSONObject(reply))
         assertEquals(0xFF6B8AFD.toInt(), voices.first { it.id == "aura-2-thalia-en" }.color)
-        assertEquals("https://cdn.example/thalia.wav", voices.first { it.id == "aura-2-thalia-en" }.sample)
         assertEquals(0, voices.first { it.id == "aura-2-agathe-fr" }.color)
         assertEquals(0, VoiceCatalog.hexColor("#12345"))
         assertEquals(0, VoiceCatalog.hexColor("#zzzzzz"))
