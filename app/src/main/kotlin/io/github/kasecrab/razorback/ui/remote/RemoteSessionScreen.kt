@@ -3,15 +3,19 @@ package io.github.kasecrab.razorback.ui.remote
 import android.content.Context
 import android.view.inputmethod.EditorInfo
 import android.widget.LinearLayout
-import android.widget.ScrollView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import io.github.kasecrab.razorback.App
 import io.github.kasecrab.razorback.R
+import io.github.kasecrab.razorback.model.Message
+import io.github.kasecrab.razorback.model.MessageStatus
+import io.github.kasecrab.razorback.model.Role
 import io.github.kasecrab.razorback.remote.Frames
 import io.github.kasecrab.razorback.remote.RemoteLink
+import io.github.kasecrab.razorback.ui.chat.ChatAdapter
 import io.github.kasecrab.razorback.ui.core.Screen
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
-import io.github.kasecrab.razorback.ui.md.MessageView
 import io.github.kasecrab.razorback.ui.widget.ActionSheet
 import io.github.kasecrab.razorback.ui.widget.TextField
 import io.github.kasecrab.razorback.ui.widget.TopBar
@@ -19,38 +23,41 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
- * A session running somewhere else.
+ * A session running somewhere else, drawn by the same views as one running
+ * here.
  *
- * The transcript is the same markdown renderer the local chat uses, so a
- * reply streaming in from a machine across the room redraws the way one from
- * the model does: only the last paragraph, only when it changes.
+ * What arrives over the link is turned into the app's own [Message]s and
+ * handed to [ChatAdapter], so a reply from a machine across the room gets the
+ * markdown, the code blocks and the tables the local chat already has, and
+ * anything that improves there improves here without being asked to.
  */
 class RemoteSessionScreen(context: Context, private val session: String) :
     Screen(context), RemoteLink.Watcher {
 
     private val link = App.instance.remote
     private val bar = TopBar(context)
-    private val scroll = ScrollView(context)
-    private val body = MessageView(context)
+    private val list = RecyclerView(context)
+    private val messages = ArrayList<Message>()
+    private val adapter = ChatAdapter(messages)
     private val input = TextField(context)
-    private val text = StringBuilder()
     private var question: Frames.Question? = null
 
     init {
         val column = LinearLayout(context)
         column.orientation = LinearLayout.VERTICAL
 
-        bar.set(R.drawable.ic_arrow_back, context.getString(R.string.cd_back), "session")
+        bar.set(R.drawable.ic_arrow_back, context.getString(R.string.cd_back), title())
         bar.leading.setOnClickListener { context.nav.pop() }
         column.addView(bar, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
-        scroll.addView(body)
-        scroll.isFillViewport = true
+        list.layoutManager = LinearLayoutManager(context)
+        list.adapter = adapter
+        // The same reason the local chat has none: a row that changes while
+        // text streams into it must not animate every time.
+        list.itemAnimator = null
         column.addView(
-            scroll,
-            LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f).apply {
-                setMargins(dp(16), dp(8), dp(16), 0)
-            },
+            list,
+            LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f),
         )
 
         input.setHint(R.string.composer_hint)
@@ -76,13 +83,9 @@ class RemoteSessionScreen(context: Context, private val session: String) :
     override fun onEnter() {
         link.add(this)
         link.attach(session)
-        bar.set(R.drawable.ic_arrow_back, context.getString(R.string.cd_back), title())
-        // What was kept from last time, before anything new arrives.
-        context.let {
-            App.instance.scope.launch {
-                val kept = App.instance.remoteStore.events(session)
-                if (text.isEmpty()) onEvents(session, kept)
-            }
+        App.instance.scope.launch {
+            val kept = App.instance.remoteStore.events(session)
+            if (messages.isEmpty()) onEvents(session, kept)
         }
     }
 
@@ -98,11 +101,11 @@ class RemoteSessionScreen(context: Context, private val session: String) :
         val said = input.text.trim()
         if (said.isEmpty()) return
         if (!link.ready()) {
-            trouble("that machine is not connected")
+            note("that machine is not connected")
             return
         }
         input.text = ""
-        append("\n\n**you:** $said\n\n")
+        add(Message(id = "u${messages.size}", role = Role.USER, content = said))
         link.submit(said)
     }
 
@@ -111,29 +114,31 @@ class RemoteSessionScreen(context: Context, private val session: String) :
     override fun onEvents(session: String, events: List<JSONObject>) {
         if (session != this.session && session.isNotEmpty()) return
         for (event in events) {
-            Frames.eventText(event)?.let { append(it) }
-            Frames.eventTool(event)?.let { append("\n\n`$it`\n\n") }
+            Frames.eventText(event)?.let { stream(it) }
+            Frames.eventTool(event)?.let { close(); note("ran $it") }
+            if (event.optString("type") == "turn_end") close()
         }
     }
 
     /**
-     * What was said before this phone was listening. Messages, not events —
-     * they carry a role and their whole text rather than a piece of one.
+     * Scrollback, from before this phone was listening. Whole messages rather
+     * than pieces of one, so they go in as they are.
      */
-    override fun onSnapshot(session: String, messages: List<JSONObject>) {
+    override fun onSnapshot(session: String, snapshot: List<JSONObject>) {
         if (session != this.session && session.isNotEmpty()) return
-        if (text.isNotEmpty()) return
-        val out = StringBuilder()
-        for (m in messages) {
+        if (messages.isNotEmpty()) return
+        for (m in snapshot) {
             val said = m.optString("content")
             if (said.isBlank()) continue
-            when (m.optString("role")) {
-                "user" -> out.append("\n\n**you:** ").append(said).append("\n\n")
-                "assistant" -> out.append(said)
-                else -> {}
+            val role = when (m.optString("role")) {
+                "user" -> Role.USER
+                "assistant" -> Role.ASSISTANT
+                else -> continue
             }
+            messages.add(Message(id = "s${messages.size}", role = role, content = said))
         }
-        if (out.isNotEmpty()) append(out.toString())
+        adapter.notifyDataSetChanged()
+        follow()
     }
 
     override fun onAsk(question: Frames.Question, isTool: Boolean) {
@@ -148,7 +153,7 @@ class RemoteSessionScreen(context: Context, private val session: String) :
 
     override fun onAnswered(id: Long, by: String) {
         if (question?.id == id) question = null
-        append("\n\n_answered by " + by + "_\n\n")
+        note("answered by $by")
     }
 
     override fun onState(state: Frames.SessionState) {
@@ -156,7 +161,7 @@ class RemoteSessionScreen(context: Context, private val session: String) :
         bar.setSubtitle(if (state.busy) "working" else state.model)
     }
 
-    override fun onTrouble(text: String) = trouble(text)
+    override fun onTrouble(text: String) = note(text)
 
     private fun answer(allow: Boolean) {
         val asked = question ?: return
@@ -164,13 +169,47 @@ class RemoteSessionScreen(context: Context, private val session: String) :
         link.answerTool(asked.id, allow)
     }
 
-    private fun trouble(what: String) {
-        append("\n\n_${what}_\n\n")
+    // ---- keeping the list in step ---------------------------------------
+
+    /** Text into the reply being written, starting one if there is none. */
+    private fun stream(more: String) {
+        val last = messages.lastOrNull()
+        if (last != null && last.role == Role.ASSISTANT && last.status == MessageStatus.STREAMING) {
+            last.content += more
+            adapter.notifyItemChanged(messages.size - 1, ChatAdapter.STREAM)
+            follow()
+            return
+        }
+        add(
+            Message(
+                id = "a${messages.size}",
+                role = Role.ASSISTANT,
+                content = more,
+                status = MessageStatus.STREAMING,
+            ),
+        )
     }
 
-    private fun append(more: String) {
-        text.append(more)
-        body.render(text.toString())
-        scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
+    /** The reply is finished, so it stops being one that is still arriving. */
+    private fun close() {
+        val last = messages.lastOrNull() ?: return
+        if (last.status != MessageStatus.STREAMING) return
+        last.status = MessageStatus.COMPLETE
+        adapter.notifyItemChanged(messages.size - 1)
+    }
+
+    private fun note(what: String) {
+        close()
+        add(Message(id = "n${messages.size}", role = Role.ASSISTANT, content = "_${what}_"))
+    }
+
+    private fun add(message: Message) {
+        messages.add(message)
+        adapter.notifyItemInserted(messages.size - 1)
+        follow()
+    }
+
+    private fun follow() {
+        list.post { list.scrollToPosition(messages.size - 1) }
     }
 }
