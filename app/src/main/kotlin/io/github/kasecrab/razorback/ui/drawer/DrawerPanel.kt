@@ -18,6 +18,7 @@ import io.github.kasecrab.razorback.ui.core.Type
 import io.github.kasecrab.razorback.ui.core.appTheme
 import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.widget.Chip
+import io.github.kasecrab.razorback.ui.widget.IconButton
 import io.github.kasecrab.razorback.ui.widget.SearchBox
 import io.github.kasecrab.razorback.ui.widget.Shapes
 
@@ -25,7 +26,7 @@ import io.github.kasecrab.razorback.ui.widget.Shapes
 class DrawerPanel(context: Context) : LinearLayout(context), Themed {
 
     val newChat = Chip(context)
-    val settings = Chip(context)
+    val settings = IconButton(context)
     val search = SearchBox(context)
     var onOpen: ((Conversation) -> Unit)? = null
     var onMenu: ((Conversation) -> Unit)? = null
@@ -66,12 +67,10 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
         footer.orientation = HORIZONTAL
         footer.gravity = Gravity.CENTER_VERTICAL
         footer.setPadding(dp(12), dp(8), dp(12), dp(8))
-        settings.style = Chip.Style.SOFT
-        settings.leadingIcon = R.drawable.ic_settings
-        settings.setText(R.string.settings)
-        settings.minimumHeight = dp(40)
-        settings.setPadding(dp(14), 0, dp(16), 0)
-        footer.addView(settings, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+        settings.iconRes = R.drawable.ic_settings
+        settings.tone = IconButton.Tone.SECONDARY
+        settings.contentDescription = context.getString(R.string.cd_settings)
+        footer.addView(settings, LayoutParams(dp(44), dp(44)))
         footer.addView(View(context), LayoutParams(0, 0, 1f))
         newChat.style = Chip.Style.ACCENT
         newChat.leadingIcon = R.drawable.ic_new_chat
