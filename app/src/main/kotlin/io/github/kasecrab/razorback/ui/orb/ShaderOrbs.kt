@@ -95,7 +95,7 @@ class NebulaOrb : AgslOrb(
         float px = 1.0 / min(res.x, res.y);
         float edgeR = 0.33 + 0.05 * level + (n - 0.5) * 0.06;
         float disc = 1.0 - smoothstep(edgeR - px * 2.0, edgeR + px * 2.0, r);
-        float glow = exp(-(r - edgeR) * 6.0) * step(edgeR, r) * (0.15 + 0.5 * outLevel + 0.2 * think);
+        float glow = exp(-(r - edgeR) * 6.0) * step(edgeR, r) * (0.15 + 0.5 * outLevel + 0.2 * think) * fade(r);
         float k = clamp(glow, 0.0, 1.0);
         float3 col = a * k;
         col = mix(col, gas, disc);
@@ -121,7 +121,7 @@ class EclipseOrb : AgslOrb(
         float corona = exp(-(r - discR) * (9.0 - 4.0 * outLevel)) * (0.35 + 0.9 * outLevel + 0.25 * think) * (0.5 + 0.8 * ang);
         float flare = pow(0.5 + 0.5 * sin(a * 7.0 + t * 0.8), 18.0) * exp(-(r - discR) * 3.0) * outLevel * 0.8;
         float rim = exp(-abs(r - discR) * 60.0) * (0.6 + 0.4 * inLevel);
-        float k = clamp((corona + flare) * step(discR, r), 0.0, 1.0);
+        float k = clamp((corona + flare) * step(discR, r) * fade(r), 0.0, 1.0);
         float3 col = float3(c0.rgb) * k;
         float alpha = k;
         float rimK = clamp(rim, 0.0, 1.0);
@@ -150,7 +150,7 @@ class ReactorOrb : AgslOrb(
         float wave = fract(t * (0.35 + 0.6 * outLevel));
         float shock = exp(-abs(r - wave * 0.55) * 60.0) * (1.0 - wave) * (0.3 + 0.9 * outLevel);
         float grid = pow(0.5 + 0.5 * sin(atan(uv.y, uv.x) * 24.0 + t), 40.0) * exp(-r * 6.0) * inLevel * 0.6;
-        float k = clamp(rings + shock + grid, 0.0, 1.0);
+        float k = clamp((rings + shock + grid) * fade(r), 0.0, 1.0);
         float3 col = float3(c0.rgb) * k;
         float coreK = clamp(core, 0.0, 1.0);
         col = mix(col, float3(c1.rgb), coreK);

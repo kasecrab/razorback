@@ -50,7 +50,7 @@ class SolOrb : AgslOrb(
         float body = 1.0 - smoothstep(radius - px, radius + px, r);
         float rim = exp(-abs(r - radius + px * 1.5) * (0.08 / px)) * 0.5;
         float haloStrength = 0.14 + 0.5 * outLevel + 0.22 * inLevel + 0.14 * think * (0.5 + 0.5 * sin(t * 3.0));
-        float halo = exp(-(r - radius) * (9.0 - 3.0 * outLevel)) * step(radius, r) * haloStrength;
+        float halo = exp(-(r - radius) * (9.0 - 3.0 * outLevel)) * step(radius, r) * haloStrength * fade(r);
         float3 rgb = col * body + light * rim * body * 0.5 + accent * halo;
         float alpha = clamp(body + halo, 0.0, 1.0);
         return half4(half3(rgb), alpha);

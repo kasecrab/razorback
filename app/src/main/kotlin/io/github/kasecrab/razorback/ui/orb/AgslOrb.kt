@@ -129,6 +129,11 @@ abstract class AgslOrb(override val id: String, override val name: String, body:
                 return step(2.5, state) * step(state, 3.5);
             }
 
+            // Glow must reach zero before the square's edge, or a faint tinted box shows.
+            float fade(float r) {
+                return 1.0 - smoothstep(0.36, 0.49, r);
+            }
+
         """.trimIndent() + "\n"
     }
 }
