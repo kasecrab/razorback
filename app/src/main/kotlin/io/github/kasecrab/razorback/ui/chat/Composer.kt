@@ -56,7 +56,9 @@ class Composer(context: Context) : LinearLayout(context), Themed {
     init {
         orientation = VERTICAL
         clipToOutline = true
-        setPadding(dp(6), dp(8), dp(6), dp(6))
+        // The same inset at both ends: the plus glyph sits 8 dp inside its button, so the
+        // filled button on the right gets an 8 dp margin to land on the same line.
+        setPadding(dp(8), dp(8), dp(8), dp(8))
 
         addView(strip, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         input.background = null
@@ -81,14 +83,14 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         thinkingChip.leadingIcon = R.drawable.ic_brain
         thinkingChip.text = "Off"
         thinkingChip.setPadding(dp(8), 0, dp(10), 0)
-        row.addView(thinkingChip, LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)))
+        row.addView(thinkingChip, LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)).apply { marginStart = dp(4) })
 
         temporaryChip.style = Chip.Style.PLAIN
         temporaryChip.leadingIcon = R.drawable.ic_incognito
         temporaryChip.contentDescription = context.getString(R.string.cd_temporary)
         temporaryChip.setPadding(dp(8), 0, dp(8), 0)
         temporaryChip.compoundDrawablePadding = 0
-        row.addView(temporaryChip, LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)))
+        row.addView(temporaryChip, LayoutParams(LayoutParams.WRAP_CONTENT, dp(36)).apply { marginStart = dp(4) })
 
         row.addView(View(context), LayoutParams(0, 1, 1f))
 
@@ -116,7 +118,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
 
         primary.filled = true
         primary.tone = IconButton.Tone.ON_ACCENT
-        row.addView(primary, LayoutParams(dp(40), dp(40)).apply { marginStart = dp(2) })
+        row.addView(primary, LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(8) })
         addView(row, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         input.addTextChangedListener(object : android.text.TextWatcher {
