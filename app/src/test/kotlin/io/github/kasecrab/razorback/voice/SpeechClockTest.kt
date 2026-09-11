@@ -87,4 +87,60 @@ class SpeechClockTest {
         c.flushed()
         assertTrue(c.allFlushed)
     }
+
+    @Test
+    fun theHighlightNeverStepsBack() {
+        val c = SpeechClock()
+        // A guessed run: the highlight runs ahead on the guess, then the real length turns out longer.
+        c.sentence("One two three four five six seven eight nine ten.")
+        c.audio(60000)
+        c.seek(60000)
+        val ahead = c.word
+        assertTrue(ahead >= 3)
+        c.audio(200000)
+        c.flushed()
+        // The same played position now maps to an earlier word; the highlight waits instead.
+        assertFalse(c.seek(60000))
+        assertEquals(ahead, c.word)
+        // Once the voice has really got there, it moves on.
+        c.seek(250000)
+        assertEquals(9, c.word)
+    }
+
+    @Test
+    fun aRunStillArrivingIsGuessedAtThePaceHeardSoFar() {
+        val c = SpeechClock()
+        // Fifty characters took 300000 bytes: 6000 bytes a character, twice the default.
+        c.sentence("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        c.audio(300000)
+        c.flushed()
+        c.sentence("One two three four five six seven eight nine ten.")
+        c.audio(1000)
+        // At 6000 bytes a character, 15000 bytes in is still "One"; at the default pace it would be "two".
+        c.seek(300000 + 15000)
+        assertEquals(1, c.word)
+        c.reset()
+        // The pace survives a reset, so the next reply's first run is guessed at it too.
+        c.sentence("One two three four five six seven eight nine ten.")
+        c.audio(1000)
+        c.seek(15000)
+        assertEquals(0, c.word)
+    }
+
+    @Test
+    fun audioAheadOfItsRunBelongsToTheNextOne() {
+        val c = SpeechClock()
+        c.audio(5000)
+        c.sentence("Hello there.")
+        c.audio(1000)
+        c.flushed()
+        c.sentence("Second.")
+        c.audio(6000)
+        c.flushed()
+        // Six thousand bytes in is still the first run; the next byte is the second.
+        c.seek(5999)
+        assertEquals(1, c.word)
+        c.seek(6000)
+        assertEquals(2, c.word)
+    }
 }
