@@ -9,6 +9,7 @@ import android.os.Looper
 import io.github.kasecrab.razorback.core.Ids
 import io.github.kasecrab.razorback.core.Keys
 import io.github.kasecrab.razorback.core.Log
+import io.github.kasecrab.razorback.core.Net
 import io.github.kasecrab.razorback.core.Prefs
 import io.github.kasecrab.razorback.data.ChatStore
 import io.github.kasecrab.razorback.model.Conversation
@@ -274,7 +275,7 @@ class ChatEngine(
                 imageOutput = info?.producesImages == true,
                 preferLatency = spoken,
             )
-            val runner = TurnRunner(provider, h) { text, reasoning ->
+            val runner = TurnRunner(provider, h, online = { Net.online(context) }) { text, reasoning ->
                 synchronized(lock) {
                     if (pendingFirstToken == 0L) pendingFirstToken = System.currentTimeMillis()
                     if (text != null) pendingText.append(text)

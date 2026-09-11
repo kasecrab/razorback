@@ -6,6 +6,7 @@ import android.os.SystemClock
 import io.github.kasecrab.razorback.chat.ChatEngine
 import io.github.kasecrab.razorback.core.Keys
 import io.github.kasecrab.razorback.core.Log
+import io.github.kasecrab.razorback.core.Net
 import io.github.kasecrab.razorback.core.Prefs
 import io.github.kasecrab.razorback.core.Secrets
 import io.github.kasecrab.razorback.model.MessageStatus
@@ -98,6 +99,10 @@ class VoiceSession(
 
     fun start() {
         if (isActive) return
+        if (!Net.online(context)) {
+            fail(Net.OFFLINE)
+            return
+        }
         state = State.CONNECTING
         engine.addListener(this)
         stt = ears()

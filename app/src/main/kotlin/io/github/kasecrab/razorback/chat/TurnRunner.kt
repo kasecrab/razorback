@@ -1,6 +1,7 @@
 package io.github.kasecrab.razorback.chat
 
 import io.github.kasecrab.razorback.core.Log
+import io.github.kasecrab.razorback.core.Net
 import io.github.kasecrab.razorback.model.Usage
 import io.github.kasecrab.razorback.provider.Accumulator
 import io.github.kasecrab.razorback.provider.ChatEvent
@@ -16,6 +17,8 @@ import io.github.kasecrab.razorback.provider.StreamHandle
 class TurnRunner(
     private val provider: Provider,
     private val handle: StreamHandle,
+    /** Whether the phone has a network at all; without one there is nothing to retry. */
+    private val online: () -> Boolean = { true },
     private val onDelta: (text: String?, reasoning: String?) -> Unit,
 ) {
     class Outcome(val acc: Accumulator, val error: String?, val cancelled: Boolean)
@@ -24,6 +27,7 @@ class TurnRunner(
         val acc = Accumulator()
         var attempt = 0
         while (true) {
+            if (!online()) return Outcome(acc, Net.OFFLINE, cancelled = false)
             var gotAny = false
             var failure: ChatEvent.Failure? = null
             try {
@@ -47,6 +51,7 @@ class TurnRunner(
                 return Outcome(acc, null, cancelled = true)
             } catch (e: Exception) {
                 if (handle.cancelled) return Outcome(acc, null, cancelled = true)
+                if (!online()) return Outcome(acc, Net.OFFLINE, cancelled = false)
                 if (!gotAny && attempt < RetryPolicy.MAX_ATTEMPTS - 1 && RetryPolicy.isTransient(e)) {
                     val wait = RetryPolicy.backoffMs(attempt)
                     Log.w("request failed, retrying in ${wait}ms: ${e.message}")
