@@ -21,10 +21,15 @@ class RingOrb : AgslOrb(
         float2 s = uv * 3.0;
         float sw = fbm(s + float2(cos(t * 0.2), sin(t * 0.2)) * 0.6 + a * 0.15);
         float gate = exp(-r * 5.5) * (0.22 + outLevel * 0.9 + inLevel * 0.5 + think * 0.3) * (0.55 + 0.45 * sw);
-        float3 col = float3(c2.rgb) + float3(c0.rgb) * gate * (1.0 - ring) * step(r, ringR + 0.01);
-        col = mix(col, float3(c1.rgb), clamp(exp(-abs(r - ringR) * 38.0) * (0.18 + 0.3 * level) * (1.0 - ring), 0.0, 1.0));
+        float glow = clamp(gate * (1.0 - ring) * step(r, ringR + 0.01), 0.0, 1.0);
+        float3 col = float3(c0.rgb) * glow;
+        float alpha = glow;
+        float edge = clamp(exp(-abs(r - ringR) * 38.0) * (0.18 + 0.3 * level) * (1.0 - ring), 0.0, 1.0);
+        col = mix(col, float3(c1.rgb), edge);
+        alpha = mix(alpha, 1.0, edge);
         col = mix(col, ringCol, ring);
-        return half4(half3(col), 1.0);
+        alpha = mix(alpha, 1.0, ring);
+        return half4(half3(col), alpha);
     }
     """.trimIndent(),
 )
@@ -37,7 +42,8 @@ class PulseOrb : AgslOrb(
     half4 main(float2 frag) {
         float2 uv = centred(frag);
         float level = 0.12 + max(inLevel * 0.9, outLevel) + 0.15 * thinking();
-        float3 col = float3(c2.rgb);
+        float3 col = float3(0.0);
+        float alpha = 0.0;
         float env = exp(-uv.x * uv.x * 7.0);
         for (int i = 0; i < 4; i++) {
             float fi = float(i);
@@ -49,9 +55,11 @@ class PulseOrb : AgslOrb(
             float d = abs(uv.y - y);
             float line = exp(-d * d * 2600.0);
             float3 tint = mix(float3(c0.rgb), float3(c1.rgb), fi / 3.0);
-            col = mix(col, tint, clamp(line * (0.95 - fi * 0.15), 0.0, 1.0));
+            float k = clamp(line * (0.95 - fi * 0.15), 0.0, 1.0);
+            col = mix(col, tint, k);
+            alpha = mix(alpha, 1.0, k);
         }
-        return half4(half3(col), 1.0);
+        return half4(half3(col), alpha);
     }
     """.trimIndent(),
 )
@@ -76,16 +84,22 @@ class NebulaOrb : AgslOrb(
         float2 p = uv * 2.2;
         float2 warp = float2(fbm(p + float2(t * 0.11, 0.0)), fbm(p + float2(0.0, t * 0.09) + 5.2));
         float n = fbm(p + warp * (1.2 + 1.5 * level) + float2(t * 0.05, -t * 0.03));
+        // Fine grain keeps the gas sharp at any size instead of reading as a soft blob.
+        n += (noise(p * 6.0 + warp * 2.0 + float2(t * 0.03, 0.0)) - 0.5) * 0.14;
         float3 a = float3(c0.rgb);
         float3 b = hueShift(a, 0.7);
         float3 c = hueShift(a, -0.7);
-        float3 gas = mix(mix(c, a, smoothstep(0.25, 0.55, n)), b, smoothstep(0.55, 0.85, n));
-        gas = mix(gas, float3(c1.rgb), pow(n, 3.0) * (0.4 + 0.6 * outLevel));
-        float disc = 1.0 - smoothstep(0.28 + 0.05 * level, 0.40 + 0.05 * level, r);
-        float glow = exp(-r * 4.5) * (0.15 + 0.5 * outLevel + 0.2 * think);
-        float3 col = float3(c2.rgb) + a * glow;
+        float3 gas = mix(mix(c, a, smoothstep(0.28, 0.52, n)), b, smoothstep(0.55, 0.82, n));
+        gas = mix(gas, float3(c1.rgb), pow(clamp(n, 0.0, 1.0), 3.0) * (0.4 + 0.6 * outLevel));
+        // The cloud's edge is ragged but crisp: the noise pushes it in and out, the fade is two pixels.
+        float px = 1.0 / min(res.x, res.y);
+        float edgeR = 0.33 + 0.05 * level + (n - 0.5) * 0.06;
+        float disc = 1.0 - smoothstep(edgeR - px * 2.0, edgeR + px * 2.0, r);
+        float glow = exp(-(r - edgeR) * 6.0) * step(edgeR, r) * (0.15 + 0.5 * outLevel + 0.2 * think);
+        float k = clamp(glow, 0.0, 1.0);
+        float3 col = a * k;
         col = mix(col, gas, disc);
-        return half4(half3(col), 1.0);
+        return half4(half3(col), mix(k, 1.0, disc));
     }
     """.trimIndent(),
 )
@@ -107,11 +121,16 @@ class EclipseOrb : AgslOrb(
         float corona = exp(-(r - discR) * (9.0 - 4.0 * outLevel)) * (0.35 + 0.9 * outLevel + 0.25 * think) * (0.5 + 0.8 * ang);
         float flare = pow(0.5 + 0.5 * sin(a * 7.0 + t * 0.8), 18.0) * exp(-(r - discR) * 3.0) * outLevel * 0.8;
         float rim = exp(-abs(r - discR) * 60.0) * (0.6 + 0.4 * inLevel);
-        float3 col = mix(float3(c2.rgb), float3(c0.rgb), clamp((corona + flare) * step(discR, r), 0.0, 1.0));
-        col = mix(col, float3(c1.rgb), clamp(rim, 0.0, 1.0));
+        float k = clamp((corona + flare) * step(discR, r), 0.0, 1.0);
+        float3 col = float3(c0.rgb) * k;
+        float alpha = k;
+        float rimK = clamp(rim, 0.0, 1.0);
+        col = mix(col, float3(c1.rgb), rimK);
+        alpha = mix(alpha, 1.0, rimK);
         float3 body = mix(float3(0.03), float3(c0.rgb) * 0.12, inLevel);
         col = mix(col, body, disc);
-        return half4(half3(col), 1.0);
+        alpha = mix(alpha, 1.0, disc);
+        return half4(half3(col), alpha);
     }
     """.trimIndent(),
 )
@@ -131,9 +150,11 @@ class ReactorOrb : AgslOrb(
         float wave = fract(t * (0.35 + 0.6 * outLevel));
         float shock = exp(-abs(r - wave * 0.55) * 60.0) * (1.0 - wave) * (0.3 + 0.9 * outLevel);
         float grid = pow(0.5 + 0.5 * sin(atan(uv.y, uv.x) * 24.0 + t), 40.0) * exp(-r * 6.0) * inLevel * 0.6;
-        float3 col = mix(float3(c2.rgb), float3(c0.rgb), clamp(rings + shock + grid, 0.0, 1.0));
-        col = mix(col, float3(c1.rgb), clamp(core, 0.0, 1.0));
-        return half4(half3(col), 1.0);
+        float k = clamp(rings + shock + grid, 0.0, 1.0);
+        float3 col = float3(c0.rgb) * k;
+        float coreK = clamp(core, 0.0, 1.0);
+        col = mix(col, float3(c1.rgb), coreK);
+        return half4(half3(col), mix(k, 1.0, coreK));
     }
     """.trimIndent(),
 )

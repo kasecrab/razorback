@@ -52,7 +52,6 @@ abstract class AgslOrb(override val id: String, override val name: String, body:
     override fun draw(canvas: Canvas, w: Int, h: Int, t: Float, inLevel: Float, outLevel: Float, state: Int, theme: Theme) {
         val s = shader
         if (s == null) {
-            canvas.drawColor(theme.bg)
             fallback.color = theme.accent
             canvas.drawCircle(w / 2f, h / 2f, minOf(w, h) * (0.28f + 0.05f * maxOf(inLevel, outLevel)), fallback)
             return
