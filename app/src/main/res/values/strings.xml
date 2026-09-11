@@ -203,8 +203,8 @@
     <string name="voice_turn_balanced">Balanced</string>
     <string name="voice_turn_patient">Patient · waits through long pauses</string>
     <string name="voice_mic">Microphone</string>
-    <string name="voice_mic_call">Call processing · the phone’s call path; cancels echo, may narrow the sound</string>
-    <string name="voice_mic_clean">Clean · plain recording, hears best; echo is filtered by what was said</string>
+    <string name="voice_mic_call">Call · the phone’s call path; cancels the speaker’s echo so you can cut in</string>
+    <string name="voice_mic_clean">Clean · plain recording, hears a little better; echo is filtered by what was said</string>
     <string name="voice_dictation">Typing by voice</string>
     <string name="voice_dictation_model">Dictation model</string>
     <string name="voice_language">Language</string>

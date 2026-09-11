@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import io.github.kasecrab.razorback.core.Log
 
 /** Puts the phone in call-style audio for the length of a voice session. */
 class AudioFocus(context: Context, private val onLost: () -> Unit) {
@@ -28,7 +29,10 @@ class AudioFocus(context: Context, private val onLost: () -> Unit) {
         request = r
         val granted = manager.requestAudioFocus(r) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         previousMode = manager.mode
+        // Needs MODIFY_AUDIO_SETTINGS; without it the system ignores the call quietly and the
+        // phone's echo canceller, which only runs on the call path, never engages.
         manager.mode = AudioManager.MODE_IN_COMMUNICATION
+        Log.d { "audio: mode ${manager.mode} after asking for ${AudioManager.MODE_IN_COMMUNICATION}" }
         // Prefer the loudspeaker unless something like a headset is already routed.
         val speaker = manager.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
         val current = manager.communicationDevice
