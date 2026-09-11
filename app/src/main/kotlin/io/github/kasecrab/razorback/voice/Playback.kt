@@ -37,6 +37,10 @@ class Playback(private val onDrained: () -> Unit) {
 
     val isPlaying: Boolean get() = playing
 
+    /** Times the speaker went quiet mid-speech waiting for audio; a diagnostic. */
+    @Volatile var underruns = 0
+        private set
+
     /** [stretch] plays the audio that many times faster at the same pitch; 1 leaves it as sent. */
     fun start(stretch: Float = 1f) {
         if (running) return
@@ -218,6 +222,10 @@ class Playback(private val onDrained: () -> Unit) {
             var n: Int
             var drained = false
             synchronized(lock) {
+                // Mid-speech with nothing queued and no end in sight: the audio is late, and the
+                // speaker will go quiet until it lands. Counted so a choppy reply can be diagnosed.
+                val starved = playing && size == 0 && !endMarked
+                val starvedAt = if (starved) System.nanoTime() else 0L
                 while (running && (size == 0 || (!playing && size < BYTES_PER_MS * PREBUFFER_MS && !endMarked))) {
                     if (size == 0 && endMarked && playing) {
                         drained = true
@@ -225,6 +233,10 @@ class Playback(private val onDrained: () -> Unit) {
                         break
                     }
                     lock.wait(200)
+                }
+                if (starved && running && !drained) {
+                    underruns++
+                    Log.d { "playback: queue ran dry for ${(System.nanoTime() - starvedAt) / 1_000_000} ms" }
                 }
                 if (!running) return
                 gen = generation

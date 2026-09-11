@@ -492,7 +492,7 @@ class VoiceSession(
      * frequent flushes degrade the audio and caps them at twenty a minute; a reply of
      * short sentences flushed one by one is where the voice was heard to waver. So only
      * the first words go out on their own; after that, text gathers until there is a good
-     * run of it or the speaker is about to run out, whichever comes first.
+     * run of it or the speaker is down to its last few seconds, whichever comes first.
      */
     private fun paceFlush(overdue: Boolean = false) {
         main.removeCallbacks(flushLater)
@@ -506,15 +506,15 @@ class VoiceSession(
             flushPending()
             return
         }
-        if (!clock.allFlushed) {
-            // The last run's audio is still arriving; how far ahead the speaker is will be known once it has.
-            Log.d { "voice: $chars chars wait, a run is still arriving" }
-            main.postDelayed(flushLater, FLUSH_POLL_MS)
-            return
-        }
+        // What is queued is a floor: a run just flushed is still arriving. Judging by the
+        // floor errs towards one flush more, never towards the speaker running dry.
         val ahead = audioAheadMs()
-        Log.d { "voice: $chars chars wait, speaker $ahead ms ahead" }
-        if (ahead <= LOW_WATER_MS) flushPending() else main.postDelayed(flushLater, ahead - LOW_WATER_MS)
+        if (ahead <= LOW_WATER_MS) {
+            flushPending()
+        } else {
+            Log.d { "voice: $chars chars wait, speaker $ahead ms ahead" }
+            main.postDelayed(flushLater, ahead - LOW_WATER_MS)
+        }
     }
 
     /** Tell the voice to say everything it has been given since the last flush. */
@@ -574,7 +574,6 @@ class VoiceSession(
                 if (clock.allFlushed) playback.markEnd()
                 return@execute
             }
-            if (unflushed.isNotEmpty()) paceFlush()
             maybeEnd()
         }
     }
@@ -620,9 +619,12 @@ class VoiceSession(
         const val FIRST_FLUSH_WAIT_MS = 300L
         /** Text gathers up to this much before a flush while the speaker has plenty queued. */
         const val GROUP_CHARS = 200
-        /** A flush goes out when the speaker has less than this left to say. */
-        const val LOW_WATER_MS = 1200L
-        const val FLUSH_POLL_MS = 250L
+        /**
+         * A flush goes out when the speaker has less than this left to say: the voice's first
+         * audio after a flush takes about four hundred milliseconds and varies, so the
+         * queue is kept well ahead of it or the speech comes out in fits and starts.
+         */
+        const val LOW_WATER_MS = 3000L
         val NON_WORD = Regex("[^\\p{L}\\p{N}']+")
     }
 
