@@ -3,6 +3,7 @@ package io.github.kasecrab.razorback.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Handler
 import android.os.Looper
@@ -27,6 +28,8 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         private set
     var onChanged: (() -> Unit)? = null
     var onError: ((String) -> Unit)? = null
+    /** Media volume is off, so the sample would be silent; the system volume panel is up. */
+    var onMuted: (() -> Unit)? = null
 
     private var track: AudioTrack? = null
     private var job: Job? = null
@@ -46,6 +49,7 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         }
         playing = voice.id
         onChanged?.invoke()
+        warnIfMuted()
         job = scope.launch {
             val pcm = try {
                 withContext(Dispatchers.IO) { fetch(apiKey, voice) }
@@ -139,4 +143,15 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         main.postDelayed(finish, frames * 1000L / Playback.SAMPLE_RATE + 200L)
     }
 
+    /** Samples play at media volume; when that is off, show the volume panel instead of silence. */
+    private fun warnIfMuted() {
+        val am = context.getSystemService(AudioManager::class.java) ?: return
+        val stream = AudioManager.STREAM_MUSIC
+        if (!am.isStreamMute(stream) && am.getStreamVolume(stream) > 0) return
+        try {
+            am.adjustStreamVolume(stream, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
+        } catch (_: SecurityException) {
+        }
+        onMuted?.invoke()
+    }
 }

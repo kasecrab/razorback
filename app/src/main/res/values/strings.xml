@@ -157,6 +157,7 @@
     <string name="voice_meta_f">Feminine · %1$s · %2$s</string>
     <string name="voice_meta_m">Masculine · %1$s · %2$s</string>
     <string name="cd_play_sample">Hear a sample</string>
+    <string name="voice_media_muted">Media volume is off, so the sample is silent. Turn it up to hear it.</string>
     <string name="voice_speed">Speed · %s×</string>
     <string name="voice_stt_model">Ears in voice mode</string>
     <string name="voice_turn">End of turn</string>

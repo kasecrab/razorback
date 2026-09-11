@@ -58,6 +58,7 @@ class VoicePickerSheet(context: Context, private val onPick: (Voice) -> Unit) : 
         body.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         preview.onChanged = { paintPlay() }
         preview.onError = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        preview.onMuted = { Toast.makeText(context, R.string.voice_media_muted, Toast.LENGTH_LONG).show() }
         onDismiss = { preview.stop() }
     }
 
