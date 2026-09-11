@@ -131,6 +131,12 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
         invalidate()
     }
 
+    /** A sheet on its way out is no longer in the way: touches fall through to what is beneath. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (!shown) return false
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
