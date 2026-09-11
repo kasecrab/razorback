@@ -127,7 +127,7 @@ class ChatListAdapter(
 
         override fun performClick(): Boolean {
             val handled = super.performClick()
-            if (handled) io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
+            if (handled) io.github.kasecrab.razorback.ui.core.Haptics.tick()
             return handled
         }
 

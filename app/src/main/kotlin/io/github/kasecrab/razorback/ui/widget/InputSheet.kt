@@ -42,10 +42,10 @@ class InputSheet(context: Context, title: String, initial: String, private val o
     private fun commit() {
         val text = field.text.trim()
         if (text.isEmpty()) {
-            io.github.kasecrab.razorback.ui.core.Haptics.reject(field)
+            io.github.kasecrab.razorback.ui.core.Haptics.reject()
             return
         }
-        io.github.kasecrab.razorback.ui.core.Haptics.confirm(field)
+        io.github.kasecrab.razorback.ui.core.Haptics.confirm()
         context.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(field.edit.windowToken, 0)
         dismiss()
         onSave(text)

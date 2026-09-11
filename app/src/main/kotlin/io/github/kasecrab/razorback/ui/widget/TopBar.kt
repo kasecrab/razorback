@@ -70,7 +70,7 @@ class TopBar(context: Context) : FrameLayout(context), Themed {
         titles.isClickable = true
         titles.setPadding(dp(12), dp(4), dp(8), dp(4))
         titles.setOnClickListener {
-            io.github.kasecrab.razorback.ui.core.Haptics.tick(titles)
+            io.github.kasecrab.razorback.ui.core.Haptics.tick()
             onClick()
         }
         if (onLongClick != null) {

@@ -129,15 +129,15 @@ class Composer(context: Context) : LinearLayout(context), Themed {
         primary.setOnClickListener {
             when {
                 streaming -> {
-                    Haptics.tap(primary)
+                    Haptics.tap()
                     onStop?.invoke()
                 }
                 input.text.isBlank() && strip.items.isEmpty() -> {
-                    Haptics.confirm(primary)
+                    Haptics.confirm()
                     onVoiceMode?.invoke()
                 }
                 else -> {
-                    Haptics.confirm(primary)
+                    Haptics.confirm()
                     val text = input.text.toString().trim()
                     val pending = ArrayList(strip.items)
                     input.text.clear()
@@ -171,7 +171,7 @@ class Composer(context: Context) : LinearLayout(context), Themed {
                 Dictation.State.LISTENING -> R.string.dictation_listening
             },
         )
-        if (on) Haptics.confirm(dictate) else Haptics.tap(dictate)
+        if (on) Haptics.confirm() else Haptics.tap()
     }
 
     fun updatePrimary() {

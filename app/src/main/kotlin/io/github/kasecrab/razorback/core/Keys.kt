@@ -48,4 +48,6 @@ object Keys {
     val REDUCE_MOTION = Key("theme.reduce_motion", false)
     /** Whether taps, toggles and landings are answered with a vibration. */
     val HAPTICS = Key("ui.haptics", true)
+    /** Whether a reply being written flutters under the thumb, as well. */
+    val HAPTICS_STREAM = Key("ui.haptics_stream", true)
 }

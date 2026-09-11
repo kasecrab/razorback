@@ -53,7 +53,7 @@ class ActionSheet(context: Context) : Sheet(context) {
         text.text = label
         row.addView(text, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         row.setOnClickListener {
-            if (danger) Haptics.heavy(row) else Haptics.tap(row)
+            if (danger) Haptics.heavy() else Haptics.tap()
             dismiss()
             onClick()
         }

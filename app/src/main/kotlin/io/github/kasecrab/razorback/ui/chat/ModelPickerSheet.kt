@@ -51,7 +51,7 @@ class ModelPickerSheet(context: Context) : Sheet(context) {
             val row = ModelRow(context)
             row.bind(info, selected = id == current, favorite = app.favorites.contains(id))
             row.setOnClickListener {
-                Haptics.confirm(row)
+                Haptics.confirm()
                 app.engine.model = id
                 app.favorites.get(id)?.thinking?.let {
                     app.engine.thinking = it
@@ -60,7 +60,7 @@ class ModelPickerSheet(context: Context) : Sheet(context) {
                 dismiss()
             }
             row.star.setOnClickListener {
-                Haptics.toggle(row.star, app.favorites.toggle(id))
+                Haptics.toggle(app.favorites.toggle(id))
                 row.bind(info, selected = id == app.engine.model, favorite = app.favorites.contains(id))
             }
             rows.addView(row, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))

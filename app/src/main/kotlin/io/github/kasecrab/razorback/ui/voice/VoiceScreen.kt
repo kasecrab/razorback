@@ -107,7 +107,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         end.tone = IconButton.Tone.PRIMARY
         end.contentDescription = context.getString(R.string.voice_end)
         end.setOnClickListener {
-            Haptics.heavy(end)
+            Haptics.heavy()
             context.nav.pop()
         }
         controls.addView(end, LinearLayout.LayoutParams(dp(52), dp(52)).apply { marginStart = dp(36) })
@@ -168,7 +168,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
     private fun toggleMute() {
         muted = !muted
-        Haptics.toggle(mute, muted)
+        Haptics.toggle(muted)
         voice.setMuted(muted)
         mute.iconRes = if (muted) R.drawable.ic_mic_off else R.drawable.ic_mic
         mute.tone = if (muted) IconButton.Tone.DANGER else IconButton.Tone.PRIMARY
@@ -193,9 +193,16 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         val was = shownState
         shownState = state
         when {
-            was == VoiceSession.State.USER_SPEAKING && (state == VoiceSession.State.THINKING || state == VoiceSession.State.SEARCHING) -> Haptics.tick(this)
-            was == VoiceSession.State.SPEAKING && state == VoiceSession.State.USER_SPEAKING -> Haptics.tick(this)
-            state == VoiceSession.State.ERROR && was != VoiceSession.State.ERROR -> Haptics.reject(this)
+            // Ready: the ears are open.
+            (was == VoiceSession.State.CONNECTING || was == VoiceSession.State.IDLE) && state == VoiceSession.State.LISTENING -> Haptics.tap()
+            // What was said has been taken.
+            was == VoiceSession.State.USER_SPEAKING && (state == VoiceSession.State.THINKING || state == VoiceSession.State.SEARCHING) -> Haptics.tick()
+            // A cut-in landed.
+            was == VoiceSession.State.SPEAKING && state == VoiceSession.State.USER_SPEAKING -> Haptics.tick()
+            // The voice starts, one light touch only, so the microphone hears nothing of it.
+            state == VoiceSession.State.SPEAKING && was != VoiceSession.State.SPEAKING -> Haptics.tick()
+            state == VoiceSession.State.ERROR && was != VoiceSession.State.ERROR -> Haptics.reject()
+            state == VoiceSession.State.RECONNECTING && was != VoiceSession.State.RECONNECTING -> Haptics.tap()
         }
         status.text = when (state) {
             VoiceSession.State.IDLE, VoiceSession.State.CONNECTING -> context.getString(R.string.voice_connecting)

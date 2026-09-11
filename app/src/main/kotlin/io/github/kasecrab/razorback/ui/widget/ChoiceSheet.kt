@@ -48,7 +48,7 @@ class ChoiceSheet(
             check.scaleType = ImageView.ScaleType.CENTER
             row.addView(check, LinearLayout.LayoutParams(dp(24), dp(24)))
             row.setOnClickListener {
-                io.github.kasecrab.razorback.ui.core.Haptics.tick(row)
+                io.github.kasecrab.razorback.ui.core.Haptics.tick()
                 selected = value
                 onPick(value)
                 dismiss()

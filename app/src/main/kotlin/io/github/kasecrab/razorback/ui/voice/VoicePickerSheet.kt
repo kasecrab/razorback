@@ -115,7 +115,7 @@ class VoicePickerSheet(context: Context, private val onPick: (Voice) -> Unit) : 
         use.isFocusable = true
         use.setOnClickListener {
             if (voices.isEmpty()) return@setOnClickListener
-            io.github.kasecrab.razorback.ui.core.Haptics.confirm(use)
+            io.github.kasecrab.razorback.ui.core.Haptics.confirm()
             val v = voices[carousel.page]
             selected = v.id
             app.prefs[Keys.VOICE_TTS_VOICE] = v.id
@@ -208,7 +208,7 @@ class VoicePickerSheet(context: Context, private val onPick: (Voice) -> Unit) : 
     private fun tapped(card: VoiceCard, disc: Boolean) {
         val i = card.tag as? Int ?: return
         if (i >= voices.size) return
-        io.github.kasecrab.razorback.ui.core.Haptics.tick(card)
+        io.github.kasecrab.razorback.ui.core.Haptics.tick()
         if (i != carousel.page) {
             carousel.scrollTo(i)
         } else if (disc || preview.playing != voices[i].id) {

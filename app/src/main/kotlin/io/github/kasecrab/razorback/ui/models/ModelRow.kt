@@ -59,7 +59,7 @@ class ModelRow(context: Context) : LinearLayout(context), Themed {
 
     override fun performClick(): Boolean {
         val handled = super.performClick()
-        if (handled) Haptics.tick(this)
+        if (handled) Haptics.tick()
         return handled
     }
 

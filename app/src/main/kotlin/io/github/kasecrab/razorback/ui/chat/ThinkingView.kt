@@ -54,7 +54,7 @@ class ThinkingView(context: Context) : LinearLayout(context), Themed {
         body.visibility = View.GONE
         addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         header.setOnClickListener {
-            io.github.kasecrab.razorback.ui.core.Haptics.tick(header)
+            io.github.kasecrab.razorback.ui.core.Haptics.tick()
             userToggled = true
             setExpanded(!expanded)
         }

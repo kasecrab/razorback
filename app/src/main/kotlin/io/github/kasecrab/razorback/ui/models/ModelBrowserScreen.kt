@@ -288,7 +288,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
             }
             .add(R.drawable.ic_copy, context.getString(R.string.copy_model_id)) {
                 context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("model", m.id))
-                Haptics.confirm(this)
+                Haptics.confirm()
             }
             .show()
     }
@@ -307,7 +307,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
             val m = shown[position]
             holder.row.bind(m, selected = m.id == app.engine.model, favorite = favorites.contains(m.id), note = note(m))
             holder.row.setOnClickListener {
-                Haptics.confirm(holder.row)
+                Haptics.confirm()
                 if (select) app.engine.model = m.id
                 onPicked?.invoke(m)
                 context.nav.pop()
@@ -317,7 +317,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
                 true
             }
             holder.row.star.setOnClickListener {
-                Haptics.toggle(holder.row.star, favorites.toggle(m.id))
+                Haptics.toggle(favorites.toggle(m.id))
                 notifyItemChanged(holder.bindingAdapterPosition)
             }
         }

@@ -62,11 +62,11 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
     fun start() {
         if (mic.isRunning) return
         if (!io.github.kasecrab.razorback.ui.core.KeyNeeded.check(context, Secrets.DEEPGRAM)) {
-            Haptics.reject(edit)
+            Haptics.reject()
             return
         }
         if (!io.github.kasecrab.razorback.core.Net.online(context)) {
-            Haptics.reject(edit)
+            Haptics.reject()
             Toast.makeText(context, io.github.kasecrab.razorback.core.Net.OFFLINE, Toast.LENGTH_SHORT).show()
             return
         }
@@ -142,7 +142,7 @@ class Dictation(private val context: Context, private val edit: EditText) : Dict
     }
 
     override fun onError(message: String) {
-        Haptics.reject(edit)
+        Haptics.reject()
         if (message == io.github.kasecrab.razorback.voice.DeepgramAccount.KEY_REFUSED) {
             stop()
             io.github.kasecrab.razorback.ui.core.KeyNeeded.rejected(context, Secrets.DEEPGRAM)

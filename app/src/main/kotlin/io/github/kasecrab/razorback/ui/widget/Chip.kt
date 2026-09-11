@@ -61,7 +61,7 @@ class Chip(context: Context) : TextView(context), Themed {
 
     override fun performClick(): Boolean {
         val handled = super.performClick()
-        if (handled) Haptics.tick(this)
+        if (handled) Haptics.tick()
         return handled
     }
 

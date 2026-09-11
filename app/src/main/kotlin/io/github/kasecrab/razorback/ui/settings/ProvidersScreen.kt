@@ -299,11 +299,11 @@ class ProvidersScreen(context: Context) : Screen(context) {
                 busy = false
                 result.onSuccess {
                     accepted()
-                    Haptics.confirm(input)
+                    Haptics.confirm()
                 }
                 result.onFailure {
                     failure = reason(it)
-                    Haptics.reject(input)
+                    Haptics.reject()
                 }
                 render()
                 syncSaveBar()

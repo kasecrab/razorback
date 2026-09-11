@@ -130,7 +130,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         composer.thinkingChip.setOnClickListener { ThinkingLevelSheet(context).show() }
         composer.temporaryChip.setOnClickListener {
             val on = !engine.temporary
-            Haptics.toggle(composer.temporaryChip, on)
+            Haptics.toggle(on)
             engine.newConversation()
             engine.temporary = on
         }
@@ -207,7 +207,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     private fun showConversationMenu(conv: Conversation) {
         val sheet = ActionSheet(context)
         sheet.add(R.drawable.ic_star, context.getString(if (conv.pinned) R.string.action_unpin else R.string.action_pin)) {
-            Haptics.toggle(this, !conv.pinned)
+            Haptics.toggle(!conv.pinned)
             engine.setPinned(conv, !conv.pinned)
         }
         sheet.add(R.drawable.ic_edit, context.getString(R.string.action_rename)) {
@@ -261,7 +261,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         if (content.isBlank() && images.isEmpty()) return
         // Without a key the message stays in the composer and the way to the key is shown.
         if (!io.github.kasecrab.razorback.ui.core.KeyNeeded.check(context, io.github.kasecrab.razorback.core.Secrets.OPENROUTER)) {
-            Haptics.reject(composer)
+            Haptics.reject()
             return
         }
         if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -317,10 +317,10 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
                     val r = runCatching { withContext(Dispatchers.IO) { TextExtract.load(context, uri) } }
                     r.onSuccess {
                         composer.strip.add(AttachStrip.Pending(null, it))
-                        Haptics.confirm(composer)
+                        Haptics.confirm()
                     }
                     r.onFailure {
-                        Haptics.reject(composer)
+                        Haptics.reject()
                         Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show()
                     }
                     composer.updatePrimary()
@@ -335,10 +335,10 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
                 val r = runCatching { withContext(Dispatchers.IO) { job() } }
                 r.onSuccess {
                     composer.strip.add(AttachStrip.Pending(it, null))
-                    Haptics.confirm(composer)
+                    Haptics.confirm()
                 }
                 r.onFailure {
-                    Haptics.reject(composer)
+                    Haptics.reject()
                     Toast.makeText(context, context.getString(R.string.attach_failed, it.message ?: "image"), Toast.LENGTH_SHORT).show()
                 }
             }
@@ -351,7 +351,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         val sheet = ActionSheet(context)
         sheet.add(R.drawable.ic_copy, context.getString(R.string.action_copy)) {
             context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("message", m.content))
-            Haptics.confirm(this)
+            Haptics.confirm()
         }
         if (m.role == Role.USER && !engine.isStreaming) {
             sheet.add(R.drawable.ic_edit, context.getString(R.string.action_edit_resend)) {
@@ -395,6 +395,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
     override fun onMessageChanged(index: Int, streaming: Boolean) {
         if (streaming) adapter.notifyItemChanged(index, ChatAdapter.STREAM) else adapter.notifyItemChanged(index)
+        if (streaming && isShown && context.ui().nav.top === this) Haptics.stream()
         follow()
     }
 
@@ -408,7 +409,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         composer.streaming = streaming
         if (!streaming && isShown) {
             val last = engine.messages.lastOrNull()
-            if (last != null && last.status == io.github.kasecrab.razorback.model.MessageStatus.ERROR) Haptics.reject(this) else Haptics.tick(this)
+            if (last != null && last.status == io.github.kasecrab.razorback.model.MessageStatus.ERROR) Haptics.reject() else Haptics.tick()
         }
     }
 

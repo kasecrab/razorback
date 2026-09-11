@@ -171,7 +171,9 @@
     <string name="reduce_motion">Reduce motion</string>
     <string name="reduce_motion_hint">Skip transitions and idle animation</string>
     <string name="haptics">Haptic feedback</string>
-    <string name="haptics_hint">A light touch on taps and toggles, firmer when something is sent, saved or refused</string>
+    <string name="haptics_hint">A light touch on taps and toggles, firmer when something is sent, saved or refused. Filed as media vibration, so it works with the system’s touch feedback off</string>
+    <string name="haptics_stream">Flutter while a reply writes</string>
+    <string name="haptics_stream_hint">A faint pulse under the words as they arrive, as in voice mode when the assistant speaks up</string>
     <string name="backup">Backup</string>
     <string name="backup_subtitle">Export or import chats and settings</string>
     <string name="backup_export_full">Export everything</string>

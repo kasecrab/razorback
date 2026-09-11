@@ -41,7 +41,7 @@ class SwitchView(context: Context) : View(context), Themed {
         isFocusable = true
         setOnClickListener {
             checked = !checked
-            io.github.kasecrab.razorback.ui.core.Haptics.toggle(this, checked)
+            io.github.kasecrab.razorback.ui.core.Haptics.toggle(checked)
             onChange?.invoke(checked)
         }
         onThemeChanged(context.appTheme)

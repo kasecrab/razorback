@@ -71,7 +71,7 @@ class SliderView(context: Context) : View(context), Themed {
             val s = Math.round((v - min) / step)
             if (s != lastStep) {
                 lastStep = s
-                io.github.kasecrab.razorback.ui.core.Haptics.tick(this)
+                io.github.kasecrab.razorback.ui.core.Haptics.tick()
             }
         }
         if (v != value) {

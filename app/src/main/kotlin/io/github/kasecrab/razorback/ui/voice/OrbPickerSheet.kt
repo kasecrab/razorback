@@ -56,7 +56,7 @@ class OrbPickerSheet(context: Context, private val onPick: (Orb) -> Unit) : Shee
             label.setPadding(0, dp(6), 0, 0)
             card.addView(label)
             card.setOnClickListener {
-                io.github.kasecrab.razorback.ui.core.Haptics.confirm(card)
+                io.github.kasecrab.razorback.ui.core.Haptics.confirm()
                 App.instance.prefs[Keys.VOICE_ORB] = orb.id
                 onPick(orb)
                 dismiss()
