@@ -13,7 +13,6 @@ import io.github.kasecrab.razorback.ui.orb.Orbs
 import io.github.kasecrab.razorback.ui.voice.OrbPickerSheet
 import io.github.kasecrab.razorback.ui.voice.VoicePickerSheet
 import io.github.kasecrab.razorback.voice.Speed
-import io.github.kasecrab.razorback.voice.Voices
 import io.github.kasecrab.razorback.ui.widget.Chip
 import io.github.kasecrab.razorback.ui.widget.Caption
 import io.github.kasecrab.razorback.ui.widget.ChoiceSheet
@@ -162,8 +161,8 @@ class VoiceSettingsScreen(context: Context) : Screen(context) {
 
     private fun sync() {
         val voice = prefs[Keys.VOICE_TTS_VOICE]
-        val v = Voices.byId(voice)
-        voiceRow.set(R.drawable.ic_waveform, context.getString(R.string.voice_voice), if (v != null) "${v.name} · ${v.accent} · ${v.traits.lowercase()}" else voice)
+        val v = App.instance.voices.byId(voice)
+        voiceRow.set(R.drawable.ic_waveform, context.getString(R.string.voice_voice), if (v != null) "${v.name} · ${v.accent} · ${v.traits.lowercase()}" else io.github.kasecrab.razorback.voice.Voice.placeholder(voice).name)
         val sp = prefs[Keys.VOICE_SPEED]
         speedLabel.text = context.getString(R.string.voice_speed, String.format(Locale.US, "%.2f", sp))
         for ((i, chip) in presets.withIndex()) chip.active = kotlin.math.abs(PRESETS[i] - sp) < 0.01f

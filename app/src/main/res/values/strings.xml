@@ -172,6 +172,14 @@
     <string name="voice_in_use">In use</string>
     <string name="voice_count">%1$d of %2$d</string>
     <string name="voice_swipe_hint">Swipe to hear the others</string>
+    <string name="voice_filter_language">Language</string>
+    <string name="voice_filter_gender">Gender</string>
+    <string name="voice_filter_tone">Tone</string>
+    <string name="voice_any">Any</string>
+    <string name="voice_feminine">Feminine</string>
+    <string name="voice_masculine">Masculine</string>
+    <string name="voice_none_match">No voice matches</string>
+    <string name="voice_catalog_failed">Could not load Deepgram’s voice list</string>
     <string name="voice_media_muted">Media volume is off, so the sample is silent. Turn it up to hear it.</string>
     <string name="voice_speed">Speed · %s×</string>
     <string name="voice_stt_model">Ears in voice mode</string>

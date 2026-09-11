@@ -17,6 +17,7 @@ import io.github.kasecrab.razorback.data.PromptStore
 import io.github.kasecrab.razorback.provider.ModelCatalog
 import io.github.kasecrab.razorback.provider.openrouter.OpenRouterProvider
 import io.github.kasecrab.razorback.tools.ToolRegistry
+import io.github.kasecrab.razorback.voice.VoiceCatalog
 import io.github.kasecrab.razorback.voice.VoiceSession
 
 class App : Application() {
@@ -33,6 +34,7 @@ class App : Application() {
     val engine: ChatEngine by lazy { ChatEngine(this, prefs, openRouter, store, catalog, tools) }
     val voice: VoiceSession by lazy { VoiceSession(this, prefs, secrets, engine) }
     val favorites: Favorites by lazy { Favorites(prefs) }
+    val voices: VoiceCatalog by lazy { VoiceCatalog(filesDir) { secrets.get(Secrets.DEEPGRAM) } }
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 

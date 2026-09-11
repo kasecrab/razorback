@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import io.github.kasecrab.razorback.core.Http
 import io.github.kasecrab.razorback.core.HttpException
+import io.github.kasecrab.razorback.core.Log
 import java.io.File
 import java.net.URLEncoder
 import kotlin.math.sqrt
@@ -19,8 +20,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Says one sentence in a voice so it can be chosen by ear. The audio is fetched once
- * over Aura's plain request endpoint and kept in the cache, so a second listen is free.
+ * Lets a voice be chosen by ear. Deepgram's own recording of the voice is fetched, the
+ * first seconds of it, and kept in the cache; a voice without one says a sentence
+ * through Aura's plain request endpoint instead.
  */
 class VoicePreview(private val context: Context, private val key: () -> String?) {
 
@@ -37,7 +39,7 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
     var onMuted: (() -> Unit)? = null
 
     private var track: AudioTrack? = null
-    private var pcm: ByteArray? = null
+    private var clip: Wav.Clip? = null
     private var job: Job? = null
     private val main = Handler(Looper.getMainLooper())
     private val finish = Runnable { stop() }
@@ -59,7 +61,7 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         warnIfMuted()
         job = scope.launch {
             val data = try {
-                withContext(Dispatchers.IO) { fetch(apiKey, voice) }
+                withContext(Dispatchers.IO) { fetch(apiKey, voice) ?: throw IllegalStateException("No sample for this voice") }
             } catch (e: Exception) {
                 if (playing == voice.id) {
                     playing = null
@@ -85,7 +87,7 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
             it.release()
         }
         track = null
-        pcm = null
+        clip = null
         if (playing != null) {
             playing = null
             onChanged?.invoke()
@@ -95,10 +97,13 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
     /** Loudness of the sample at the point now being heard, 0..1, so a pulse can follow the voice. */
     fun level(): Float {
         val t = track ?: return 0f
-        val data = pcm ?: return 0f
-        val at = t.playbackHeadPosition * 2
-        if (at <= 0 || at >= data.size) return 0f
-        val end = minOf(data.size, at + WINDOW_BYTES)
+        val c = clip ?: return 0f
+        val data = c.bytes
+        val frameBytes = 2 * c.channels
+        val at = c.offset + t.playbackHeadPosition * frameBytes
+        val stop = c.offset + c.length
+        if (at <= c.offset || at >= stop) return 0f
+        val end = minOf(stop, at + c.rate * frameBytes / 25)
         var sum = 0.0
         var n = 0
         var i = at and 1.inv()
@@ -112,32 +117,75 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         return (sqrt(sum / n).toFloat() / FULL_SCALE).coerceIn(0f, 1f)
     }
 
-    private fun fetch(apiKey: String, voice: Voice): ByteArray {
+    private fun fetch(apiKey: String, voice: Voice): Wav.Clip? {
         val dir = File(context.cacheDir, "voices")
-        val file = File(dir, voice.id + ".pcm")
-        if (file.exists() && file.length() > 0) return file.readBytes()
+        val wav = File(dir, voice.id + ".wav")
+        if (wav.exists() && wav.length() > 0) Wav.parse(wav.readBytes())?.let { return it }
+        val url = voice.sample
+        if (url != null) {
+            try {
+                val bytes = download(url)
+                val parsed = Wav.parse(bytes)
+                if (parsed != null) {
+                    dir.mkdirs()
+                    wav.writeBytes(bytes)
+                    return parsed
+                }
+            } catch (e: Exception) {
+                Log.w("voice sample download failed", e)
+            }
+        }
+        val pcm = File(dir, voice.id + ".pcm")
+        val raw = if (pcm.exists() && pcm.length() > 0) pcm.readBytes() else synthesize(apiKey, voice).also {
+            dir.mkdirs()
+            pcm.writeBytes(it)
+        }
+        return Wav.Clip(raw, 0, raw.size, Playback.SAMPLE_RATE, 1)
+    }
+
+    /** The first [CLIP_BYTES] of Deepgram's recording; servers that ignore the range send it all, which is fine. */
+    private fun download(url: String): ByteArray {
+        val conn = Http.open(url, "GET", mapOf("Range" to "bytes=0-$CLIP_BYTES", "Accept" to "audio/wav, */*"))
+        try {
+            val status = conn.responseCode
+            if (status >= 400) throw HttpException(status, "HTTP $status")
+            return conn.inputStream.use { it.readBytes() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** What a voice says when Deepgram has no recording of it, in its own language. */
+    private fun sentence(v: Voice): String = when (v.language) {
+        "es" -> "Hola, soy ${v.name}. Así suena mi voz."
+        "nl" -> "Hoi, ik ben ${v.name}. Zo klinkt mijn stem."
+        "fr" -> "Bonjour, je suis ${v.name}. Voici ma voix."
+        "de" -> "Hallo, ich bin ${v.name}. So klingt meine Stimme."
+        "it" -> "Ciao, sono ${v.name}. Questa è la mia voce."
+        "ja" -> "こんにちは、${v.name}です。これが私の声です。"
+        else -> "Hi, I'm ${v.name}. This is what I sound like."
+    }
+
+    private fun synthesize(apiKey: String, voice: Voice): ByteArray {
         val url = "https://api.deepgram.com/v1/speak?model=" + URLEncoder.encode(voice.id, "UTF-8") +
             "&encoding=linear16&sample_rate=" + Playback.SAMPLE_RATE + "&container=none"
         val conn = Http.open(url, "POST", mapOf("Authorization" to "Token $apiKey"))
         try {
-            val body = org.json.JSONObject().put("text", Voices.sample(voice)).toString().toByteArray(Charsets.UTF_8)
+            val body = org.json.JSONObject().put("text", sentence(voice)).toString().toByteArray(Charsets.UTF_8)
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setFixedLengthStreamingMode(body.size)
             conn.outputStream.use { it.write(body) }
             val status = conn.responseCode
             if (status >= 400) throw HttpException(status, Http.errorMessage(conn, status))
-            val bytes = conn.inputStream.use { it.readBytes() }
-            dir.mkdirs()
-            file.writeBytes(bytes)
-            return bytes
+            return conn.inputStream.use { it.readBytes() }
         } finally {
             conn.disconnect()
         }
     }
 
-    private fun start(data: ByteArray, id: String) {
-        val frames = data.size / 2
+    private fun start(c: Wav.Clip, id: String) {
+        val frames = c.frames
         if (frames == 0) {
             stop()
             return
@@ -145,14 +193,15 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
         val t = AudioTrack.Builder()
             .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             .setAudioFormat(
-                AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(Playback.SAMPLE_RATE).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build(),
+                AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(c.rate)
+                    .setChannelMask(if (c.channels == 2) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO).build(),
             )
-            .setBufferSizeInBytes(data.size)
+            .setBufferSizeInBytes(c.length)
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
         // A static track reports STATE_NO_STATIC_DATA until its buffer is written; only
         // STATE_UNINITIALIZED means the track could not be made.
-        if (t.state == AudioTrack.STATE_UNINITIALIZED || t.write(data, 0, data.size) < data.size) {
+        if (t.state == AudioTrack.STATE_UNINITIALIZED || t.write(c.bytes, c.offset, c.length) < c.length) {
             t.release()
             stop()
             return
@@ -166,11 +215,11 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
             override fun onPeriodicNotification(track: AudioTrack) {}
         })
         track = t
-        pcm = data
+        clip = c
         t.play()
         onChanged?.invoke()
         // The end marker is not delivered on every device, so the sample's own length ends it too.
-        main.postDelayed(finish, frames * 1000L / Playback.SAMPLE_RATE + 200L)
+        main.postDelayed(finish, frames * 1000L / c.rate + 200L)
     }
 
     /** Samples play at media volume; when that is off, show the volume panel instead of silence. */
@@ -186,8 +235,8 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
     }
 
     private companion object {
-        /** 40 ms of 24 kHz mono PCM16. */
-        const val WINDOW_BYTES = 1920
         const val FULL_SCALE = 9000f
+        /** Eight seconds of 24 kHz mono PCM16 plus a header: enough to judge a voice. */
+        const val CLIP_BYTES = 44 + 8 * 48000
     }
 }

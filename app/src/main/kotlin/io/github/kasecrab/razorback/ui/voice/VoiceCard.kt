@@ -23,7 +23,7 @@ import io.github.kasecrab.razorback.ui.core.icon
 import io.github.kasecrab.razorback.ui.widget.Chip
 import io.github.kasecrab.razorback.ui.widget.Shapes
 import io.github.kasecrab.razorback.voice.Voice
-import io.github.kasecrab.razorback.voice.Voices
+import io.github.kasecrab.razorback.voice.VoiceCatalog
 import kotlin.math.abs
 
 /** One voice on a card: its language, a disc that plays and pulses with the sample, and who it sounds like. */
@@ -43,7 +43,7 @@ class VoiceCard(context: Context) : LinearLayout(context), Themed {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
         isClickable = true
-        setPadding(dp(20), dp(20), dp(20), dp(20))
+        setPadding(dp(16), dp(16), dp(16), dp(16))
         language.typeface = Fonts.medium
         language.letterSpacing = 0.08f
         language.isAllCaps = true
@@ -60,7 +60,7 @@ class VoiceCard(context: Context) : LinearLayout(context), Themed {
         badge.setText(R.string.voice_in_use)
         disc.contentDescription = context.getString(R.string.cd_play_sample)
         addView(language, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
-        addView(disc, LayoutParams(dp(112), dp(112)).apply { topMargin = dp(16); bottomMargin = dp(16) })
+        addView(disc, LayoutParams(dp(100), dp(100)).apply { topMargin = dp(12); bottomMargin = dp(12) })
         addView(name, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
         addView(meta, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(2) })
         addView(traits, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
@@ -70,12 +70,18 @@ class VoiceCard(context: Context) : LinearLayout(context), Themed {
 
     fun bind(v: Voice, inUse: Boolean) {
         voice = v
-        language.text = Voices.languages[v.language] ?: v.language
+        val lang = VoiceCatalog.languageName(v.language)
+        language.text = if (v.architecture.isEmpty() || v.architecture == "aura-2") lang else "$lang · ${v.architecture}"
         name.text = v.name
-        meta.text = context.getString(if (v.feminine) R.string.voice_f else R.string.voice_m, v.accent)
+        val who = when (v.feminine) {
+            true -> context.getString(R.string.voice_f, v.accent)
+            false -> context.getString(R.string.voice_m, v.accent)
+            null -> v.accent
+        }
+        meta.text = if (v.age.isNotEmpty() && v.age != "Adult") "$who · ${v.age}" else who
         traits.text = v.traits
         badge.visibility = if (inUse) View.VISIBLE else View.INVISIBLE
-        disc.hue = hueOf(v.id)
+        disc.hue = if (v.color != 0) hueOf(v.color) else hueOf(v.id)
     }
 
     override fun onThemeChanged(theme: Theme) {
@@ -94,6 +100,12 @@ class VoiceCard(context: Context) : LinearLayout(context), Themed {
         var h = 0
         for (c in id) h = h * 31 + c.code
         return (abs(h) % 360).toFloat()
+    }
+
+    private fun hueOf(color: Int): Float {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(color, hsv)
+        return hsv[0]
     }
 }
 
