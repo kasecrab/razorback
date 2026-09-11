@@ -25,6 +25,8 @@ class RelayClient(
     interface Listener {
         /** The link is up. Anything the machine needs told goes now. */
         fun onLink() {}
+        /** The link is down; it dials again on its own unless [onTrouble] said it was fatal. */
+        fun onDown() {}
         /** One payload, already opened, with the relay's number for the frame it came in. */
         fun onPayload(payload: Frames.FromDesk, n: Long) {}
         /** Everything before this is gone from the relay. */
@@ -165,6 +167,7 @@ class RelayClient(
         sealer = null
         opener = null
         deskLink = null
+        main.post { listener.onDown() }
         if (!armed) return
         // A refusal will be refused again in exactly the same way.
         if (error is HandshakeException) {

@@ -32,6 +32,10 @@ class RemoteLink(
         fun onAnswered(id: Long, by: String) {}
         fun onTrouble(text: String) {}
         fun onMachine(machine: Frames.Machine) {}
+        /** The socket came up or went down; [ready] says which. */
+        fun onLink() {}
+        /** A session this phone asked for has started and is ready to be opened. */
+        fun onSessionStarted(session: String) {}
     }
 
     private val watchers = ArrayList<Watcher>()
@@ -51,6 +55,9 @@ class RemoteLink(
         private set
     var pendingIsTool: Boolean = false
         private set
+
+    /** Set by [newSession]: the next session list is looked through for the one that was asked for. */
+    private var openNewest = false
 
     val paired: Boolean get() = secrets.has(Secrets.RELAY) && url().isNotEmpty()
 
@@ -92,6 +99,14 @@ class RemoteLink(
         val started = RelayClient(url, raw, this)
         client = started
         scope.launch {
+            // What the machine said last time, so the list is there before the socket is.
+            if (sessions.isEmpty()) {
+                val kept = store.sessions(hub)
+                if (kept.isNotEmpty() && sessions.isEmpty()) {
+                    sessions = kept.map { Frames.Session(it.id, null, it.title, it.cwd, it.model, it.startedMs, 0, it.live) }
+                    watchers.forEach { it.onSessions(sessions) }
+                }
+            }
             // Picking up where this phone left off rather than asking for
             // everything the relay still has.
             val from = store.machines().firstOrNull { it.hub == hub }?.cursor ?: 0
@@ -146,6 +161,12 @@ class RemoteLink(
         client?.send(Frames.resume(session))
     }
 
+    /** Start a session in [cwd] on the machine; the one that appears is announced through [Watcher.onSessionStarted]. */
+    fun newSession(cwd: String) {
+        openNewest = true
+        client?.send(Frames.newSession(cwd, null))
+    }
+
     fun refresh() {
         client?.send(Frames.list())
     }
@@ -155,6 +176,11 @@ class RemoteLink(
     override fun onLink() {
         refresh()
         if (attached.isNotEmpty()) attach(attached)
+        watchers.forEach { it.onLink() }
+    }
+
+    override fun onDown() {
+        watchers.forEach { it.onLink() }
     }
 
     override fun onPayload(payload: Frames.FromDesk, n: Long) {
@@ -165,9 +191,17 @@ class RemoteLink(
                 watchers.forEach { it.onMachine(payload.machine) }
             }
             is Frames.FromDesk.Sessions -> {
+                val before = sessions.map { it.id }.toSet()
                 sessions = payload.list
                 scope.launch { store.rememberSessions(hub, payload.list) }
                 watchers.forEach { it.onSessions(payload.list) }
+                if (openNewest) {
+                    val fresh = payload.list.filter { it.live && it.id !in before }.maxByOrNull { it.startedMs }
+                    if (fresh != null) {
+                        openNewest = false
+                        watchers.forEach { it.onSessionStarted(fresh.id) }
+                    }
+                }
             }
             is Frames.FromDesk.State -> watchers.forEach { it.onState(payload.state) }
             is Frames.FromDesk.Events -> {
@@ -192,7 +226,10 @@ class RemoteLink(
                 watchers.forEach { it.onAnswered(payload.id, payload.by) }
             }
             is Frames.FromDesk.Ack ->
-                payload.error?.let { why -> watchers.forEach { it.onTrouble(why) } }
+                payload.error?.let { why ->
+                    openNewest = false
+                    watchers.forEach { it.onTrouble(why) }
+                }
             is Frames.FromDesk.Notice -> watchers.forEach { it.onTrouble(payload.text) }
             is Frames.FromDesk.Bye -> {
                 val text = when (payload.reason) {

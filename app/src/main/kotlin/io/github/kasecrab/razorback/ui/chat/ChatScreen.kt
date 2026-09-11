@@ -21,6 +21,7 @@ import io.github.kasecrab.razorback.ui.core.dp
 import io.github.kasecrab.razorback.ui.core.nav
 import io.github.kasecrab.razorback.ui.core.ui
 import io.github.kasecrab.razorback.ui.drawer.DrawerHost
+import io.github.kasecrab.razorback.ui.drawer.ChatListAdapter
 import io.github.kasecrab.razorback.ui.drawer.DrawerPanel
 import io.github.kasecrab.razorback.ui.settings.SettingsScreen
 import io.github.kasecrab.razorback.ui.widget.ActionSheet
@@ -55,8 +56,13 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     private var listJob: Job? = null
     /** A paired machine's sessions, kept up to date while the drawer is there to show them. */
     private val onRemote = object : io.github.kasecrab.razorback.remote.RemoteLink.Watcher {
-        override fun onSessions(sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) = showRemote(sessions)
-        override fun onMachine(machine: io.github.kasecrab.razorback.remote.Frames.Machine) = showRemote(app.remote.sessions)
+        override fun onSessions(sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) = reloadConversations()
+        override fun onMachine(machine: io.github.kasecrab.razorback.remote.Frames.Machine) = reloadConversations()
+        override fun onLink() = reloadConversations()
+        override fun onSessionStarted(session: String) = openRemote(session)
+        override fun onTrouble(text: String) {
+            if (drawer.isOpen) Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+        }
     }
     private val drawer = DrawerHost(context)
     private val panel = DrawerPanel(context)
@@ -156,10 +162,9 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         }
         panel.onRemote = { session ->
             drawer.close()
-            context.nav.push(
-                io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen(context, session),
-            )
+            openRemote(session.id)
         }
+        panel.onRemoteNew = { newRemoteSession() }
         panel.onMenu = { showConversationMenu(it) }
         panel.search.onTextChanged = { reloadConversations() }
         panel.settings.setOnClickListener {
@@ -185,7 +190,6 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     override fun onEnter() {
         context.ui().back.add(drawer, priority = 10)
         app.remote.add(onRemote)
-        showRemote(app.remote.sessions)
         if (app.remote.paired) app.remote.start()
         engine.addListener(this)
         app.prefs.onChange(onPref)
@@ -199,15 +203,39 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         context.uiScope.launch { app.catalog.load() }
     }
 
-    private fun showRemote(sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) {
-        panel.setRemoteSessions(app.remote.machine?.host ?: "paired machine", sessions)
+    private fun openRemote(session: String) {
+        if (context.nav.top is io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen) return
+        context.nav.push(io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen(context, session))
+    }
+
+    /** A new session on the machine, in a directory it allows; the last one used is the guess. */
+    private fun newRemoteSession() {
+        val remote = app.remote
+        if (!remote.ready()) {
+            Toast.makeText(context, R.string.remote_offline, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val host = remote.machine?.host ?: context.getString(R.string.remote)
+        val guess = remote.sessions.maxByOrNull { it.startedMs }?.cwd ?: ""
+        InputSheet(context, context.getString(R.string.remote_new_dir, host), guess) { cwd ->
+            drawer.close()
+            remote.newSession(cwd)
+        }.show()
+    }
+
+    /** The paired machine's group for the sidebar, or nothing when there is no machine or a search is on. */
+    private fun remoteGroup(): ChatListAdapter.Remote? {
+        val remote = app.remote
+        if (!remote.paired || panel.search.text.isNotBlank()) return null
+        val host = remote.machine?.host ?: context.getString(R.string.remote_sessions)
+        return ChatListAdapter.Remote(host, remote.ready(), remote.sessions, canStart = remote.machine?.holder != "tui")
     }
 
     private fun reloadConversations() {
         listJob?.cancel()
         listJob = context.uiScope.launch {
             val convs = app.store.listConversations(panel.search.text)
-            panel.setConversations(convs, engine.conversation?.id)
+            panel.setConversations(convs, engine.conversation?.id, remoteGroup())
         }
     }
 
