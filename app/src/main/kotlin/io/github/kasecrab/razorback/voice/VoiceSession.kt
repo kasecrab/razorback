@@ -137,6 +137,7 @@ class VoiceSession(
         if (engine.isStreaming && replyIndex >= 0) engine.stop()
         // Nothing that arrives from here on is ours: not audio, not text.
         replyIndex = -1
+        audioArrived = false
         mic.stop()
         stt.stop()
         tts.stop()
@@ -385,6 +386,7 @@ class VoiceSession(
         toolRound = false
         tentative = false
         cuePending = false
+        audioArrived = false
         spokenWords.clear()
         spokenStems.clear()
         replyStartBytes = playback.enqueuedBytes.get()
@@ -606,8 +608,9 @@ class VoiceSession(
         audioArrived = false
         context.mainExecutor.execute {
             if (state != State.SPEAKING && state != State.SEARCHING) return@execute
-            if (toolRound || (engine.isStreaming && !streamDone)) {
-                // The cue has been said; the answer is still on its way.
+            if (toolRound || (engine.isStreaming && !streamDone) || !clock.allFlushed) {
+                // The cue has been said; the answer is still on its way, or its runs have
+                // been flushed and their audio is not in yet. Either way the reply is not over.
                 cuePending = false
                 state = if (toolRound) State.SEARCHING else State.THINKING
                 return@execute
