@@ -18,6 +18,13 @@ class ModelCatalog(private val cache: ModelCache, private val key: () -> String?
     @Volatile var fetchedAt: Long = 0L
         private set
 
+    /** Ids of the models the router sees used most for programming, most used first. */
+    @Volatile var popular: List<String> = emptyList()
+        private set
+    @Volatile var popularAt: Long = 0L
+        private set
+    private var popularLoaded = false
+
     private val byId = HashMap<String, ModelInfo>()
     private val listeners = ArrayList<() -> Unit>(2)
     private var loaded = false
@@ -59,11 +66,44 @@ class ModelCatalog(private val cache: ModelCache, private val key: () -> String?
         }
     }
 
+    /** The most used list: from cache, then the router when the cache is a day old or [force]. Main thread. */
+    suspend fun loadPopular(force: Boolean = false): Throwable? {
+        if (!popularLoaded) {
+            popularLoaded = true
+            withContext(Dispatchers.IO) { cache.readPopular() }?.let {
+                popular = it.ids
+                popularAt = it.fetchedAt
+            }
+        }
+        val stale = System.currentTimeMillis() - popularAt > ModelCache.MAX_AGE_MS
+        if (!force && !stale && popular.isNotEmpty()) return null
+        return try {
+            val ids = withContext(Dispatchers.IO) {
+                val headers = key()?.let { OpenRouter.headers(it) } ?: emptyMap()
+                val json = Http.getJson("${OpenRouter.BASE}/models?category=$POPULAR_CATEGORY", headers)
+                cache.writePopular(json)
+                OpenRouterModels.parseIds(json)
+            }
+            popular = ids
+            popularAt = System.currentTimeMillis()
+            for (l in listeners) l()
+            null
+        } catch (e: Exception) {
+            Log.w("popular models refresh failed: ${e.message}")
+            e
+        }
+    }
+
     private fun publish(list: List<ModelInfo>, at: Long) {
         models = list
         fetchedAt = at
         byId.clear()
         for (m in list) byId[m.id] = m
         for (l in listeners) l()
+    }
+
+    companion object {
+        /** The router ranks usage per category; programming is the one this app's people live in. */
+        const val POPULAR_CATEGORY = "programming"
     }
 }

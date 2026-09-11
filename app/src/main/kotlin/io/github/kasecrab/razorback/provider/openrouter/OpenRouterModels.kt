@@ -6,6 +6,7 @@ import io.github.kasecrab.razorback.core.bool
 import io.github.kasecrab.razorback.core.dbl
 import io.github.kasecrab.razorback.core.forEachObject
 import io.github.kasecrab.razorback.core.int
+import io.github.kasecrab.razorback.core.long
 import io.github.kasecrab.razorback.core.obj
 import io.github.kasecrab.razorback.core.str
 import io.github.kasecrab.razorback.core.strings
@@ -54,10 +55,19 @@ object OpenRouterModels {
                     inputModalities = arch?.arr("input_modalities")?.strings()?.toSet() ?: setOf("text"),
                     outputModalities = arch?.arr("output_modalities")?.strings()?.toSet() ?: setOf("text"),
                     reasoning = reasoning,
+                    created = m.long("created") ?: 0L,
+                    intelligence = m.obj("benchmarks")?.obj("artificial_analysis")?.dbl("intelligence_index"),
                 ),
             )
         }
         out.sortBy { it.id }
+        return out
+    }
+
+    /** The router lists a category's models most used first; only the order is kept. */
+    fun parseIds(json: JSONObject): List<String> {
+        val out = ArrayList<String>(20)
+        json.arr("data")?.forEachObject { m -> m.str("id")?.let { out.add(it) } }
         return out
     }
 

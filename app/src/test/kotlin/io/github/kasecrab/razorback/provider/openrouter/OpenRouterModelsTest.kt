@@ -11,7 +11,8 @@ class OpenRouterModelsTest {
         val json = JSONObject(
             """{"data":[{"id":"z/b","name":"B","context_length":128000,"pricing":{"prompt":"0.0000015","completion":"0.000006"},
             "supported_parameters":["tools","reasoning"],"architecture":{"input_modalities":["text","image"],"output_modalities":["text"]},
-            "reasoning":{"mandatory":false,"default_enabled":true,"supported_efforts":["max","high","low"],"default_effort":"high"}},
+            "reasoning":{"mandatory":false,"default_enabled":true,"supported_efforts":["max","high","low"],"default_effort":"high"},
+            "created":1788552838,"benchmarks":{"artificial_analysis":{"intelligence_index":52.8}}},
             {"id":"a/a","pricing":{"prompt":"0","completion":"0"}},{"name":"no id"}]}""",
         )
         val models = OpenRouterModels.parse(json)
@@ -27,5 +28,14 @@ class OpenRouterModelsTest {
         assertEquals(listOf("max", "high", "low"), r.supportedEfforts)
         assertEquals("high", r.defaultEffort)
         assertEquals(null, models[0].reasoning)
+        assertEquals(1788552838L, b.created)
+        assertEquals(52.8, b.intelligence!!, 1e-9)
+        assertEquals(null, models[0].intelligence)
+    }
+
+    @Test
+    fun aCategoryListKeepsOnlyTheIdsInTheRoutersOrder() {
+        val json = JSONObject("""{"data":[{"id":"z/b","name":"B"},{"name":"no id"},{"id":"a/a"}]}""")
+        assertEquals(listOf("z/b", "a/a"), OpenRouterModels.parseIds(json))
     }
 }

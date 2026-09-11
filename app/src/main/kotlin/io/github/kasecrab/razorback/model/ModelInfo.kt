@@ -14,7 +14,15 @@ class ModelInfo(
     val outputModalities: Set<String>,
     /** What the router says about the model's thinking; null when it says nothing. */
     val reasoning: ReasoningInfo? = null,
+    /** When the router listed the model, in seconds since the epoch; zero when unknown. */
+    val created: Long = 0L,
+    /** Artificial Analysis intelligence index, when the router carries one. */
+    val intelligence: Double? = null,
 ) {
+    /** The id without a routing variant: `:free`, `:batch` and the like. */
+    val baseId: String get() = id.substringBefore(':')
+    val isBatch: Boolean get() = id.endsWith(":batch")
+
     val acceptsImages: Boolean get() = "image" in inputModalities
     val acceptsFiles: Boolean get() = "file" in inputModalities
     val producesImages: Boolean get() = "image" in outputModalities

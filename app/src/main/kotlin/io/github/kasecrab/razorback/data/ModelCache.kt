@@ -8,12 +8,33 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
 
-/** The provider's raw model list on disk, so the picker works offline and starts instantly. */
+/** The provider's raw model lists on disk, so the picker works offline and starts instantly. */
 class ModelCache(dir: File) {
 
     private val file = File(dir, "models.json")
+    private val popularFile = File(dir, "popular.json")
 
     class Entry(val models: List<ModelInfo>, val fetchedAt: Long)
+
+    class Popular(val ids: List<String>, val fetchedAt: Long)
+
+    fun readPopular(): Popular? {
+        if (!popularFile.exists()) return null
+        return try {
+            val json = JSONObject(popularFile.readText())
+            Popular(OpenRouterModels.parseIds(json), json.long("fetched_ms") ?: 0L)
+        } catch (e: JSONException) {
+            Log.w("popular cache unreadable", e)
+            null
+        }
+    }
+
+    fun writePopular(raw: JSONObject) {
+        raw.put("fetched_ms", System.currentTimeMillis())
+        val tmp = File(popularFile.parentFile, popularFile.name + ".tmp")
+        tmp.writeText(raw.toString())
+        tmp.renameTo(popularFile)
+    }
 
     fun read(): Entry? {
         if (!file.exists()) return null
