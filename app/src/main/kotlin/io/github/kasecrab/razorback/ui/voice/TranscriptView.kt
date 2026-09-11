@@ -62,8 +62,12 @@ class TranscriptView(context: Context) : ScrollView(context), Themed {
     }
 
     fun userSaid(text: String, final: Boolean) {
-        // A new turn always pulls the view back to the end, however far back the person had scrolled.
-        if (userLine == null) following = true
+        if (userLine == null) {
+            // A new turn always pulls the view back to the end, however far back the person had scrolled.
+            following = true
+            // Cutting in ends the reply being read: what was left unsaid settles to plain text.
+            endReply()
+        }
         val line = userLine ?: addUserLine(text, final).also { userLine = it }
         line.text = text
         line.alpha = if (final) 0.75f else 1f
