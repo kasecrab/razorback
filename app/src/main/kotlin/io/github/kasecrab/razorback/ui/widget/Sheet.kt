@@ -37,6 +37,11 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
     private var scrimColor = 0
     private var shown = false
     var onDismiss: (() -> Unit)? = null
+    /** The panel keeps clear of the navigation bar, and of the keyboard when one comes up under it. */
+    private val onInsets: () -> Unit = {
+        val ui = context.ui()
+        panel.setPadding(0, 0, 0, maxOf(ui.insetBottom, ui.imeBottom) + dp(8))
+    }
 
     private var fraction = 0f
         set(value) {
@@ -73,7 +78,8 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
         shown = true
         val ui = context.ui()
         if (!wantsKeyboard) io.github.kasecrab.razorback.ui.core.Keyboard.hideAll(context)
-        panel.setPadding(0, 0, 0, ui.insetBottom + dp(8))
+        onInsets()
+        ui.watchInsets(onInsets)
         ui.root.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         ui.host.apply(this)
         ui.back.add(this, priority = 20)
@@ -89,6 +95,7 @@ open class Sheet(context: Context) : FrameLayout(context), Themed, BackHandler {
         if (!shown) return
         shown = false
         context.ui().back.remove(this)
+        context.ui().unwatchInsets(onInsets)
         val done: () -> Unit = {
             (parent as? FrameLayout)?.removeView(this)
             onDismiss?.invoke()

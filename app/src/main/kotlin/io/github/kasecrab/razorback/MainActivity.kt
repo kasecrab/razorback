@@ -158,7 +158,9 @@ class MainActivity : Activity() {
         val ime = insets.getInsets(WindowInsets.Type.ime())
         uiContext.insetTop = bars.top
         uiContext.insetBottom = bars.bottom
+        uiContext.imeBottom = ime.bottom
         stack.onInsetsChanged(bars.top, maxOf(bars.bottom, ime.bottom), bars.left, bars.right)
+        uiContext.insetsChanged()
     }
 
     @Deprecated("Deprecated in Java")

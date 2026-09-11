@@ -65,6 +65,22 @@ class UiContext(
     lateinit var permissions: PermissionRequests
     var insetTop = 0
     var insetBottom = 0
+    /** How far the keyboard reaches up from the bottom edge right now; zero while it is away. */
+    var imeBottom = 0
+    private val insetWatchers = ArrayList<() -> Unit>(2)
+
+    /** Views outside the screen stack, such as sheets, follow the bars and the keyboard through this. */
+    fun watchInsets(watcher: () -> Unit) {
+        insetWatchers.add(watcher)
+    }
+
+    fun unwatchInsets(watcher: () -> Unit) {
+        insetWatchers.remove(watcher)
+    }
+
+    fun insetsChanged() {
+        for (w in insetWatchers.toList()) w()
+    }
 }
 
 fun Context.ui(): UiContext {
