@@ -47,6 +47,8 @@ class TtsLink(
     private var speedRefused = false
     private var speedSent = false
     private var lastModel = ""
+    /** Audio still in flight after a Clear belongs to the reply that was cut off; it is dropped until Deepgram confirms. */
+    @Volatile private var clearing = false
 
     fun warm() {
         if (armed) return
@@ -61,11 +63,14 @@ class TtsLink(
 
     fun flush() = send("{\"type\":\"Flush\"}")
 
-    /** Drop everything queued upstream; for barge-in. */
+    /** Drop everything queued upstream and whatever of it is still on its way; for barge-in. */
     fun clear() {
         synchronized(queue) { queue.clear() }
         val socket = ws
         if (socket != null && socket.isOpen) {
+            // Deepgram answers with Cleared once the old audio has stopped, and anything spoken
+            // after this goes out behind it, so new audio can only ever follow the Cleared.
+            clearing = true
             try {
                 socket.sendText("{\"type\":\"Clear\"}")
             } catch (e: IOException) {
@@ -134,6 +139,7 @@ class TtsLink(
         val socket = WebSocketClient(url(), mapOf("Authorization" to "Token $apiKey"), object : WebSocketClient.Listener {
             override fun onOpen(ws: WebSocketClient) {
                 backoffMs = 400L
+                clearing = false
                 val pending = synchronized(queue) { ArrayList(queue).also { queue.clear() } }
                 for (f in pending) {
                     try {
@@ -146,7 +152,7 @@ class TtsLink(
 
             override fun onBinary(ws: WebSocketClient, data: ByteArray) {
                 // A socket that stop() let go of may still drain for a moment; its audio is not ours.
-                if (this@TtsLink.ws !== ws) return
+                if (this@TtsLink.ws !== ws || clearing) return
                 listener?.onAudio(data)
             }
 
@@ -158,8 +164,11 @@ class TtsLink(
                     null
                 }
                 when (type) {
-                    "Flushed" -> listener?.onFlushed()
-                    "Cleared" -> main.post { listener?.onCleared() }
+                    "Flushed" -> if (!clearing) listener?.onFlushed()
+                    "Cleared" -> {
+                        clearing = false
+                        main.post { listener?.onCleared() }
+                    }
                     "Warning", "Error" -> Log.w("tts: $text")
                 }
             }
