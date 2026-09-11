@@ -8,7 +8,10 @@ import org.json.JSONObject
 /** Generic table rows as JSON objects, so the backup follows the schema without a second mapping. */
 object Rows {
 
-    val TABLES = listOf("conversations", "messages", "prompts", "usage_log", "attachments")
+    val TABLES = listOf(
+        "conversations", "messages", "prompts", "usage_log", "attachments",
+        "remote_machines", "remote_sessions", "remote_events",
+    )
 
     fun toJson(c: Cursor): JSONObject {
         val o = JSONObject()

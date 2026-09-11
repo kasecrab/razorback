@@ -2,7 +2,7 @@ package io.github.kasecrab.razorback.data
 
 /** Statements per schema version; onUpgrade replays every version after the installed one. */
 object Schema {
-    const val VERSION = 1
+    const val VERSION = 2
 
     val versions: List<List<String>> = listOf(
         listOf(
@@ -76,6 +76,35 @@ object Schema {
                 source TEXT NOT NULL,
                 created_at INTEGER NOT NULL)""",
             "CREATE INDEX idx_att_msg ON attachments(message_id)",
+        ),
+        // v2: machines paired with this phone, and what their sessions said.
+        listOf(
+            """CREATE TABLE remote_machines(
+                hub TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                paired_at INTEGER NOT NULL,
+                seen_at INTEGER NOT NULL,
+                cursor INTEGER NOT NULL DEFAULT 0)""",
+            """CREATE TABLE remote_sessions(
+                hub TEXT NOT NULL,
+                id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                cwd TEXT NOT NULL,
+                model TEXT NOT NULL,
+                started_ms INTEGER NOT NULL,
+                seen_at INTEGER NOT NULL,
+                live INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(hub, id))""",
+            "CREATE INDEX idx_remote_session_order ON remote_sessions(hub, seen_at DESC)",
+            """CREATE TABLE remote_events(
+                session_id TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                body TEXT NOT NULL,
+                at INTEGER NOT NULL,
+                PRIMARY KEY(session_id, seq))""",
+            "CREATE INDEX idx_remote_event_order ON remote_events(session_id, seq)",
         ),
     )
 }
