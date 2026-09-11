@@ -53,6 +53,11 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         refreshChips()
     }
     private var listJob: Job? = null
+    /** A paired machine's sessions, kept up to date while the drawer is there to show them. */
+    private val onRemote = object : io.github.kasecrab.razorback.remote.RemoteLink.Watcher {
+        override fun onSessions(sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) = showRemote(sessions)
+        override fun onMachine(machine: io.github.kasecrab.razorback.remote.Frames.Machine) = showRemote(app.remote.sessions)
+    }
     private val drawer = DrawerHost(context)
     private val panel = DrawerPanel(context)
     private val column = LinearLayout(context)
@@ -155,17 +160,6 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
                 io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen(context, session),
             )
         }
-        // A paired machine's sessions, kept up to date while the drawer is
-        // there to show them.
-        App.instance.remote.add(object : io.github.kasecrab.razorback.remote.RemoteLink.Watcher {
-            override fun onSessions(sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) {
-                panel.setRemoteSessions(
-                    App.instance.remote.machine?.host ?: "paired machine",
-                    sessions,
-                )
-            }
-        })
-        if (App.instance.remote.paired) App.instance.remote.start()
         panel.onMenu = { showConversationMenu(it) }
         panel.search.onTextChanged = { reloadConversations() }
         panel.settings.setOnClickListener {
@@ -190,6 +184,9 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
 
     override fun onEnter() {
         context.ui().back.add(drawer, priority = 10)
+        app.remote.add(onRemote)
+        showRemote(app.remote.sessions)
+        if (app.remote.paired) app.remote.start()
         engine.addListener(this)
         app.prefs.onChange(onPref)
         app.catalog.onChange(onCatalog)
@@ -200,6 +197,10 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         refreshTitle()
         reloadConversations()
         context.uiScope.launch { app.catalog.load() }
+    }
+
+    private fun showRemote(sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) {
+        panel.setRemoteSessions(app.remote.machine?.host ?: "paired machine", sessions)
     }
 
     private fun reloadConversations() {
@@ -240,6 +241,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
     }
 
     override fun onExit() {
+        app.remote.remove(onRemote)
         composer.dictation.release()
         engine.removeListener(this)
         app.prefs.removeOnChange(onPref)

@@ -99,8 +99,13 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
         placeholder.setText(if (search.text.isBlank()) R.string.drawer_no_chats else R.string.no_models)
     }
 
+    private var remoteMachine = ""
+    private var remoteSessions: List<io.github.kasecrab.razorback.remote.Frames.Session> = emptyList()
+
     /** What a paired machine says it has open. */
     fun setRemoteSessions(machine: String, sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) {
+        remoteMachine = machine
+        remoteSessions = sessions
         remote.removeAllViews()
         val live = sessions.filter { it.live }
         if (live.isEmpty()) {
@@ -135,6 +140,7 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
     }
 
     override fun onThemeChanged(theme: Theme) {
+        if (remoteSessions.isNotEmpty()) setRemoteSessions(remoteMachine, remoteSessions)
         background = Shapes.solid(theme.surfaceElevated)
         brand.setTextColor(theme.textPrimary)
         brand.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.TITLE))

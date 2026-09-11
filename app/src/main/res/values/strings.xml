@@ -260,6 +260,17 @@
     <string name="voice_prompt_hint">Added after your system prompt on every spoken turn. It should ask for short, natural speech; anything that produces lists, code or symbols will be read out loud.</string>
     <string name="voice_prompt_reset">Back to the built-in text</string>
     <string name="channel_remote">Paired machines</string>
+    <string name="remote">Remote control</string>
+    <string name="remote_subtitle">Watch and drive sessions on a paired machine</string>
+    <string name="remote_hint">Run ah remote pair on the machine. Scan the QR with the camera, or type the relay and the code here.</string>
+    <string name="remote_not_paired">Not paired</string>
+    <string name="remote_paired_with">Paired with %s</string>
+    <string name="remote_url_hint">Relay URL</string>
+    <string name="remote_code_hint">Pairing code</string>
+    <string name="remote_pair">Pair</string>
+    <string name="remote_forget">Forget this machine</string>
+    <string name="remote_bad_code">That is not a pairing code</string>
+    <string name="remote_bad_url">The relay has to be an https address</string>
     <string name="notif_watching">Watching a session</string>
     <string name="notif_asking">A machine is waiting on you</string>
 </resources>
