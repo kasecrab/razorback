@@ -79,7 +79,27 @@ class MainActivity : Activity() {
             io.github.kasecrab.razorback.provider.openrouter.OpenRouter.BASE = url ?: io.github.kasecrab.razorback.provider.openrouter.OpenRouter.DEFAULT_BASE
         }
         val data = intent?.data ?: return
-        if (data.scheme != "razorback" || data.host != "chat") return
+        if (data.scheme != "razorback") return
+        if (data.host == "pair") {
+            // What the QR printed by `ah remote pair` holds. The camera app
+            // reads it, so nothing here needs a camera or a scanner.
+            val url = data.getQueryParameter("u").orEmpty()
+            val code = data.getQueryParameter("c").orEmpty()
+            intent.data = null
+            val paired = url.isNotEmpty() && App.instance.remote.pair(url, code)
+            io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
+                .header(
+                    if (paired) "Paired" else "That is not a pairing",
+                    if (paired) {
+                        "This phone can now watch sessions on that machine."
+                    } else {
+                        "The link did not hold a relay and a code."
+                    },
+                )
+                .show()
+            return
+        }
+        if (data.host != "chat") return
         val id = data.lastPathSegment ?: return
         intent.data = null
         scope.launch {
@@ -91,12 +111,21 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         TurnService.stop(this)
+        // On screen again, so the link needs no notification to stay open.
+        io.github.kasecrab.razorback.bg.RemoteService.stop(this)
+        if (App.instance.remote.paired) App.instance.remote.start()
         Notifs.cancelReply(this)
     }
 
     override fun onStop() {
         super.onStop()
-        if (App.instance.engine.isStreaming && !isChangingConfigurations) TurnService.start(this)
+        if (isChangingConfigurations) return
+        if (App.instance.engine.isStreaming) TurnService.start(this)
+        // A session on another machine goes on working either way; what needs
+        // keeping alive is the socket that hears about it.
+        if (App.instance.remote.paired) {
+            io.github.kasecrab.razorback.bg.RemoteService.start(this)
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

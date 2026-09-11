@@ -259,4 +259,7 @@
     <string name="voice_prompt_custom">Your own instructions</string>
     <string name="voice_prompt_hint">Added after your system prompt on every spoken turn. It should ask for short, natural speech; anything that produces lists, code or symbols will be read out loud.</string>
     <string name="voice_prompt_reset">Back to the built-in text</string>
+    <string name="channel_remote">Paired machines</string>
+    <string name="notif_watching">Watching a session</string>
+    <string name="notif_asking">A machine is waiting on you</string>
 </resources>

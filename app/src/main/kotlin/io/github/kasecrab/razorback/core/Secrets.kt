@@ -86,6 +86,8 @@ class Secrets(private val prefs: Prefs) {
         const val OPENROUTER = "openrouter"
         const val DEEPGRAM = "deepgram"
         const val BRAVE = "brave"
+        /** The pairing code for a machine, as typed or scanned. */
+        const val RELAY = "relay"
         const val EXA = "exa"
 
         private const val STORE = "AndroidKeyStore"

@@ -149,6 +149,23 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
             drawer.close()
             engine.open(it)
         }
+        panel.onRemote = { session ->
+            drawer.close()
+            context.nav.push(
+                io.github.kasecrab.razorback.ui.remote.RemoteSessionScreen(context, session),
+            )
+        }
+        // A paired machine's sessions, kept up to date while the drawer is
+        // there to show them.
+        App.instance.remote.add(object : io.github.kasecrab.razorback.remote.RemoteLink.Watcher {
+            override fun onSessions(sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) {
+                panel.setRemoteSessions(
+                    App.instance.remote.machine?.host ?: "paired machine",
+                    sessions,
+                )
+            }
+        })
+        if (App.instance.remote.paired) App.instance.remote.start()
         panel.onMenu = { showConversationMenu(it) }
         panel.search.onTextChanged = { reloadConversations() }
         panel.settings.setOnClickListener {

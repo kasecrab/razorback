@@ -30,8 +30,11 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
     val search = SearchBox(context)
     var onOpen: ((Conversation) -> Unit)? = null
     var onMenu: ((Conversation) -> Unit)? = null
+    /** A session running on a paired machine, picked out of the list above the chats. */
+    var onRemote: ((String) -> Unit)? = null
 
     private val header = FrameLayout(context)
+    private val remote = LinearLayout(context)
     private val brand = TextView(context)
     private val list = RecyclerView(context)
     private val adapter = ChatListAdapter({ onOpen?.invoke(it) }, { onMenu?.invoke(it) })
@@ -47,6 +50,13 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
         brand.setText(R.string.app_name)
         header.addView(brand, FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL).apply { marginStart = dp(20) })
         addView(header, LayoutParams(LayoutParams.MATCH_PARENT, dp(56)))
+
+        // Sessions on a paired machine, above the chats that live here. Empty
+        // and invisible until something is paired, so it costs nothing to
+        // anyone not using it.
+        remote.orientation = VERTICAL
+        remote.visibility = GONE
+        addView(remote, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         search.setHint(R.string.search_chats)
         addView(search, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { setMargins(dp(12), 0, dp(12), dp(8)) })
@@ -87,6 +97,37 @@ class DrawerPanel(context: Context) : LinearLayout(context), Themed {
         adapter.set(context, convs, currentId)
         placeholder.visibility = if (convs.isEmpty()) View.VISIBLE else View.GONE
         placeholder.setText(if (search.text.isBlank()) R.string.drawer_no_chats else R.string.no_models)
+    }
+
+    /** What a paired machine says it has open. */
+    fun setRemoteSessions(machine: String, sessions: List<io.github.kasecrab.razorback.remote.Frames.Session>) {
+        remote.removeAllViews()
+        val live = sessions.filter { it.live }
+        if (live.isEmpty()) {
+            remote.visibility = GONE
+            return
+        }
+        remote.visibility = VISIBLE
+        val theme = context.appTheme
+        val heading = TextView(context)
+        heading.typeface = Fonts.medium
+        heading.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.CAPTION))
+        heading.text = machine
+        heading.setPadding(dp(20), dp(8), dp(20), dp(4))
+        heading.setTextColor(theme.textTertiary)
+        remote.addView(heading)
+        for (session in live) {
+            val row = TextView(context)
+            row.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
+            row.text = session.title.ifBlank { session.cwd }
+            row.maxLines = 1
+            row.ellipsize = android.text.TextUtils.TruncateAt.END
+            row.setPadding(dp(20), dp(10), dp(20), dp(10))
+            row.setTextColor(theme.textPrimary)
+            row.background = Shapes.ripple(theme.accentSoft, null, dp(10).toFloat())
+            row.setOnClickListener { onRemote?.invoke(session.id) }
+            remote.addView(row, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        }
     }
 
     fun setInsets(top: Int, bottom: Int) {

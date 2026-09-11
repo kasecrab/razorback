@@ -15,15 +15,19 @@ object Notifs {
     const val CHANNEL_TURNS = "turns"
     const val CHANNEL_REPLIES = "replies"
     const val CHANNEL_VOICE = "voice"
+    const val CHANNEL_REMOTE = "remote"
     const val ID_TURN = 1
     const val ID_REPLY = 2
     const val ID_VOICE = 3
+    const val ID_REMOTE = 4
+    const val ID_REMOTE_ASK = 5
 
     fun ensureChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL_TURNS, context.getString(R.string.channel_turns), NotificationManager.IMPORTANCE_LOW))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_REPLIES, context.getString(R.string.channel_replies), NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_VOICE, context.getString(R.string.channel_voice), NotificationManager.IMPORTANCE_LOW))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_REMOTE, context.getString(R.string.channel_remote), NotificationManager.IMPORTANCE_LOW))
     }
 
     fun openChat(context: Context, conversationId: String?): PendingIntent {
@@ -31,6 +35,28 @@ object Notifs {
         if (conversationId != null) intent.data = Uri.parse("razorback://chat/$conversationId")
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         return PendingIntent.getActivity(context, conversationId.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    /** Quiet and ongoing: the link being open is not news. */
+    fun watchingRemote(context: Context, machine: String): Notification =
+        Notification.Builder(context, CHANNEL_REMOTE)
+            .setSmallIcon(R.drawable.ic_waveform)
+            .setContentTitle(machine)
+            .setContentText(context.getString(R.string.notif_watching))
+            .setOngoing(true)
+            .setContentIntent(openChat(context, null))
+            .build()
+
+    /** A machine waiting on an answer is worth a person's attention. */
+    fun remoteAsking(context: Context, what: String) {
+        val n = Notification.Builder(context, CHANNEL_REPLIES)
+            .setSmallIcon(R.drawable.ic_waveform)
+            .setContentTitle(context.getString(R.string.notif_asking))
+            .setContentText(what)
+            .setAutoCancel(true)
+            .setContentIntent(openChat(context, null))
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(ID_REMOTE_ASK, n)
     }
 
     fun turnInProgress(context: Context, title: String, conversationId: String?): Notification =

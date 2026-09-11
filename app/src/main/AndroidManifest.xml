@@ -41,11 +41,17 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="razorback" android:host="chat" />
+                <data android:scheme="razorback" android:host="pair" />
             </intent-filter>
         </activity>
 
         <service
             android:name=".bg.TurnService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".bg.RemoteService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

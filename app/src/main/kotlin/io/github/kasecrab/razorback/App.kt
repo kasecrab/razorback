@@ -36,6 +36,11 @@ class App : Application() {
     val favorites: Favorites by lazy { Favorites(prefs) }
     val voices: VoiceCatalog by lazy { VoiceCatalog(filesDir) { secrets.get(Secrets.DEEPGRAM) } }
 
+    val remoteStore by lazy { io.github.kasecrab.razorback.data.RemoteStore(db) }
+    val remote by lazy {
+        io.github.kasecrab.razorback.remote.RemoteLink(prefs, secrets, remoteStore, scope)
+    }
+
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {

@@ -5,6 +5,8 @@ import io.github.kasecrab.razorback.ui.core.ThemeMode
 
 /** Every preference key in one place, with its default. */
 object Keys {
+    /** The relay a paired machine is reached through. Not a secret; the code is. */
+    val RELAY_URL = Key("relay.url", "")
     val MODEL = Key("model.id", "deepseek/deepseek-v4-flash-0731")
     val THINKING = EnumKey("model.thinking", ThinkingLevel.OFF, ThinkingLevel.entries.toTypedArray())
     val MAX_TOKENS = Key("model.max_tokens", 8192)
