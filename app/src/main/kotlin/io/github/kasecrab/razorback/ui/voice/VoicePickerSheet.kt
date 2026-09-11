@@ -4,9 +4,7 @@ import android.content.Context
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
-import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import io.github.kasecrab.razorback.App
@@ -17,109 +15,129 @@ import io.github.kasecrab.razorback.ui.core.Fonts
 import io.github.kasecrab.razorback.ui.core.Theme
 import io.github.kasecrab.razorback.ui.core.Type
 import io.github.kasecrab.razorback.ui.core.dp
-import io.github.kasecrab.razorback.ui.core.icon
 import io.github.kasecrab.razorback.ui.core.uiScope
-import io.github.kasecrab.razorback.ui.widget.IconButton
-import io.github.kasecrab.razorback.ui.widget.SectionHeader
-import io.github.kasecrab.razorback.ui.widget.Shapes
+import io.github.kasecrab.razorback.ui.widget.Caption
+import io.github.kasecrab.razorback.ui.widget.Carousel
 import io.github.kasecrab.razorback.ui.widget.Sheet
+import io.github.kasecrab.razorback.ui.widget.Shapes
 import io.github.kasecrab.razorback.voice.Voice
 import io.github.kasecrab.razorback.voice.VoicePreview
-import io.github.kasecrab.razorback.voice.Voices
 
-/** Every voice by language, each with a play button so it can be heard before it is chosen. */
+/**
+ * Voices as cards to swipe through. It opens on the voice in use; every card that lands
+ * speaks its sample, and the disc replays or stops it.
+ */
 class VoicePickerSheet(context: Context, private val onPick: (Voice) -> Unit) : Sheet(context) {
-
-    private class Row(val voice: Voice, val view: LinearLayout, val name: TextView, val meta: TextView, val play: IconButton, val check: ImageView)
 
     private val app = App.instance
     private val preview = VoicePreview(context) { app.secrets.get(Secrets.DEEPGRAM) }
+    private val voices = io.github.kasecrab.razorback.voice.Voices.all
     private val title = TextView(context)
-    private val rows = ArrayList<Row>(Voices.all.size)
+    private val counter = Caption(context)
+    private val carousel = Carousel(context)
+    private val hint = Caption(context)
+    private val use = TextView(context)
     private var selected = app.prefs[Keys.VOICE_TTS_VOICE]
+    private val speak = Runnable { preview.play(voices[carousel.page], context.uiScope) }
 
     init {
+        val head = LinearLayout(context)
+        head.orientation = LinearLayout.HORIZONTAL
+        head.gravity = Gravity.CENTER_VERTICAL
+        head.setPadding(dp(20), dp(4), dp(20), dp(12))
         title.typeface = Fonts.medium
         title.setText(R.string.voice_voice)
-        title.setPadding(dp(20), dp(4), dp(20), dp(4))
-        body.addView(title, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        val list = LinearLayout(context)
-        list.orientation = LinearLayout.VERTICAL
-        for ((code, label) in Voices.languages) {
-            val h = SectionHeader(context)
-            h.text = label
-            h.setPadding(dp(20), dp(12), dp(20), dp(4))
-            list.addView(h)
-            for (v in Voices.all) if (v.language == code) list.addView(row(v), LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        }
-        val scroll = ScrollView(context)
-        scroll.isVerticalScrollBarEnabled = false
-        scroll.addView(list, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        body.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        preview.onChanged = { paintPlay() }
-        preview.onError = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
-        preview.onMuted = { Toast.makeText(context, R.string.voice_media_muted, Toast.LENGTH_LONG).show() }
-        onDismiss = { preview.stop() }
-    }
+        head.addView(title, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(counter, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+        body.addView(head, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
-    private fun row(v: Voice): View {
-        val r = LinearLayout(context)
-        r.orientation = LinearLayout.HORIZONTAL
-        r.gravity = Gravity.CENTER_VERTICAL
-        r.isClickable = true
-        r.setPadding(dp(20), dp(8), dp(12), dp(8))
-        val texts = LinearLayout(context)
-        texts.orientation = LinearLayout.VERTICAL
-        val name = TextView(context)
-        name.typeface = Fonts.regular
-        name.text = v.name
-        val meta = TextView(context)
-        meta.typeface = Fonts.regular
-        meta.text = context.getString(if (v.feminine) R.string.voice_meta_f else R.string.voice_meta_m, v.accent, v.traits)
-        texts.addView(name)
-        texts.addView(meta)
-        r.addView(texts, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        val check = ImageView(context)
-        check.scaleType = ImageView.ScaleType.CENTER
-        r.addView(check, LinearLayout.LayoutParams(dp(24), dp(24)))
-        val play = IconButton(context)
-        play.iconRes = R.drawable.ic_waveform
-        play.tone = IconButton.Tone.ACCENT
-        play.contentDescription = context.getString(R.string.cd_play_sample)
-        play.setOnClickListener { preview.toggle(v, context.uiScope) }
-        r.addView(play, LinearLayout.LayoutParams(dp(44), dp(44)))
-        r.setOnClickListener {
+        carousel.count = voices.size
+        carousel.create = {
+            VoiceCard(context).also { card ->
+                card.disc.level = { preview.level() }
+                card.disc.setOnClickListener { tapped(card, true) }
+                card.setOnClickListener { tapped(card, false) }
+            }
+        }
+        carousel.bind = { i, v ->
+            v.tag = i
+            (v as VoiceCard).bind(voices[i], voices[i].id == selected)
+            paintDisc(v)
+        }
+        carousel.onPage = {
+            removeCallbacks(speak)
+            postDelayed(speak, SETTLE_MS)
+            sync()
+        }
+        body.addView(carousel, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        hint.gravity = Gravity.CENTER_HORIZONTAL
+        hint.setText(R.string.voice_swipe_hint)
+        hint.setPadding(dp(20), dp(12), dp(20), 0)
+        body.addView(hint, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        use.typeface = Fonts.medium
+        use.gravity = Gravity.CENTER
+        use.isClickable = true
+        use.isFocusable = true
+        use.setOnClickListener {
+            val v = voices[carousel.page]
             selected = v.id
             app.prefs[Keys.VOICE_TTS_VOICE] = v.id
             onPick(v)
             dismiss()
         }
-        rows.add(Row(v, r, name, meta, play, check))
-        return r
+        body.addView(use, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(48)).apply { setMargins(dp(20), dp(12), dp(20), dp(4)) })
+
+        preview.onChanged = { carousel.forEachCard { _, v -> paintDisc(v as VoiceCard) } }
+        preview.onError = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        preview.onMuted = { Toast.makeText(context, R.string.voice_media_muted, Toast.LENGTH_LONG).show() }
+        onDismiss = {
+            removeCallbacks(speak)
+            preview.stop()
+        }
+        carousel.jumpTo(voices.indexOfFirst { it.id == selected }.coerceAtLeast(0))
+        sync()
     }
 
-    private fun paintPlay() {
-        val now = preview.playing
-        for (r in rows) {
-            val on = r.voice.id == now
-            r.play.iconRes = if (on) R.drawable.ic_stop else R.drawable.ic_waveform
-            r.play.tone = if (on) IconButton.Tone.PRIMARY else IconButton.Tone.ACCENT
+    /** A side card slides to the centre; the centre card's disc, or the card itself, replays or stops. */
+    private fun tapped(card: VoiceCard, disc: Boolean) {
+        val i = card.tag as? Int ?: return
+        if (i != carousel.page) {
+            carousel.scrollTo(i)
+        } else if (disc || preview.playing != voices[i].id) {
+            removeCallbacks(speak)
+            preview.toggle(voices[i], context.uiScope)
         }
+    }
+
+    private fun paintDisc(card: VoiceCard) {
+        val id = card.voice?.id
+        card.disc.state = when {
+            id == null || preview.playing != id -> VoiceDisc.State.IDLE
+            preview.loading -> VoiceDisc.State.LOADING
+            else -> VoiceDisc.State.PLAYING
+        }
+    }
+
+    private fun sync() {
+        val v = voices[carousel.page]
+        counter.text = context.getString(R.string.voice_count, carousel.page + 1, voices.size)
+        use.text = context.getString(if (v.id == selected) R.string.voice_keep else R.string.voice_use, v.name)
     }
 
     override fun onThemeChanged(theme: Theme) {
         super.onThemeChanged(theme)
         title.setTextColor(theme.textPrimary)
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.TITLE))
-        for (r in rows) {
-            val on = r.voice.id == selected
-            r.view.background = Shapes.ripple(theme.accentSoft, null, 0f)
-            r.name.setTextColor(if (on) theme.accent else theme.textPrimary)
-            r.name.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
-            r.meta.setTextColor(theme.textSecondary)
-            r.meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.CAPTION))
-            r.check.setImageDrawable(context.icon(R.drawable.ic_check, theme.accent))
-            r.check.visibility = if (on) View.VISIBLE else View.INVISIBLE
-        }
+        use.setTextColor(theme.onAccent)
+        use.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
+        use.background = Shapes.ripple(theme.accentSoft, Shapes.pill(theme.accent), 999f)
+        counter.visibility = View.VISIBLE
+    }
+
+    private companion object {
+        /** A card speaks once the finger has left it this long, so a fast flick past voices stays quiet. */
+        const val SETTLE_MS = 150L
     }
 }

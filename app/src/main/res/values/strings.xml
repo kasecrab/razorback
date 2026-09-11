@@ -154,9 +154,14 @@
     <string name="voice">Voice</string>
     <string name="voice_subtitle">Voices, listening, orb style</string>
     <string name="voice_voice">Voice</string>
-    <string name="voice_meta_f">Feminine · %1$s · %2$s</string>
-    <string name="voice_meta_m">Masculine · %1$s · %2$s</string>
+    <string name="voice_f">Feminine · %s</string>
+    <string name="voice_m">Masculine · %s</string>
     <string name="cd_play_sample">Hear a sample</string>
+    <string name="voice_use">Use %s</string>
+    <string name="voice_keep">Keep %s</string>
+    <string name="voice_in_use">In use</string>
+    <string name="voice_count">%1$d of %2$d</string>
+    <string name="voice_swipe_hint">Swipe to hear the others</string>
     <string name="voice_media_muted">Media volume is off, so the sample is silent. Turn it up to hear it.</string>
     <string name="voice_speed">Speed · %s×</string>
     <string name="voice_stt_model">Ears in voice mode</string>
