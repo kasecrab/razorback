@@ -201,6 +201,8 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
             was == VoiceSession.State.SPEAKING && state == VoiceSession.State.USER_SPEAKING -> Haptics.tick()
             // The voice starts, one light touch only, so the microphone hears nothing of it.
             state == VoiceSession.State.SPEAKING && was != VoiceSession.State.SPEAKING -> Haptics.tick()
+            // The voice is done and the ears are open again: your turn.
+            (was == VoiceSession.State.SPEAKING || was == VoiceSession.State.THINKING || was == VoiceSession.State.SEARCHING) && state == VoiceSession.State.LISTENING -> Haptics.tap()
             state == VoiceSession.State.ERROR && was != VoiceSession.State.ERROR -> Haptics.reject()
             state == VoiceSession.State.RECONNECTING && was != VoiceSession.State.RECONNECTING -> Haptics.tap()
         }
