@@ -91,6 +91,8 @@ class VoiceSession(
     /** Text the voice has been given but not yet told to say; see [paceFlush]. */
     private val unflushed = StringBuilder()
     private val flushLater = Runnable { paceFlush(overdue = true) }
+    /** A flush that is due goes out at the end of the current burst of sentences, so they leave as one run. */
+    private val flushNow = Runnable { flushPending() }
 
     /** Which service listens, from settings: Nova for accuracy, Flux for the quickest turn-taking. */
     private fun ears(): Ears {
@@ -144,6 +146,7 @@ class VoiceSession(
         clock.reset()
         unflushed.setLength(0)
         main.removeCallbacks(flushLater)
+        main.removeCallbacks(flushNow)
         pendingTurn = null
         streamDone = false
         toolRound = false
@@ -301,6 +304,7 @@ class VoiceSession(
         clock.reset()
         unflushed.setLength(0)
         main.removeCallbacks(flushLater)
+        main.removeCallbacks(flushNow)
         streamDone = false
         toolRound = false
         main.removeCallbacks(slowThinking)
@@ -375,6 +379,7 @@ class VoiceSession(
         clock.reset()
         unflushed.setLength(0)
         main.removeCallbacks(flushLater)
+        main.removeCallbacks(flushNow)
         spokenChars = 0
         streamDone = false
         toolRound = false
@@ -510,21 +515,22 @@ class VoiceSession(
      */
     private fun paceFlush(overdue: Boolean = false) {
         main.removeCallbacks(flushLater)
+        main.removeCallbacks(flushNow)
         val chars = unflushed.length
         if (chars == 0) return
         if (clock.sentenceCount == 0) {
-            if (chars >= FIRST_FLUSH_CHARS || overdue) flushPending() else main.postDelayed(flushLater, FIRST_FLUSH_WAIT_MS)
+            if (chars >= FIRST_FLUSH_CHARS || overdue) main.post(flushNow) else main.postDelayed(flushLater, FIRST_FLUSH_WAIT_MS)
             return
         }
         if (chars >= GROUP_CHARS) {
-            flushPending()
+            main.post(flushNow)
             return
         }
         // What is queued is a floor: a run just flushed is still arriving. Judging by the
         // floor errs towards one flush more, never towards the speaker running dry.
         val ahead = audioAheadMs()
         if (ahead <= LOW_WATER_MS) {
-            flushPending()
+            main.post(flushNow)
         } else {
             Log.d { "voice: $chars chars wait, speaker $ahead ms ahead" }
             main.postDelayed(flushLater, ahead - LOW_WATER_MS)
@@ -534,6 +540,7 @@ class VoiceSession(
     /** Tell the voice to say everything it has been given since the last flush. */
     private fun flushPending() {
         main.removeCallbacks(flushLater)
+        main.removeCallbacks(flushNow)
         if (unflushed.isEmpty()) return
         val run = unflushed.toString()
         unflushed.setLength(0)
