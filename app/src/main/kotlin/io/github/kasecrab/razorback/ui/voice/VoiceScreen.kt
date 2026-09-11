@@ -30,8 +30,8 @@ import io.github.kasecrab.razorback.voice.VoiceService
 import io.github.kasecrab.razorback.voice.VoiceSession
 
 /**
- * The spoken conversation: an orb that breathes with the audio, the whole transcript
- * beneath it with the words lighting up as they are said, and mute, orb style and end.
+ * The spoken conversation: the transcript fills the screen with the words lighting up as
+ * they are said, and a small orb in a state ring sits at the bottom between mute and end.
  */
 class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
 
@@ -39,10 +39,10 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     private val voice = app.voice
     private val column = LinearLayout(context)
     private val status = TextView(context)
-    private val orb = OrbView(context)
+    private val halo = VoiceHalo(context)
+    private val orb: OrbView get() = halo.orb
     private val transcript = TranscriptView(context)
     private val mute = IconButton(context)
-    private val style = IconButton(context)
     private val end = IconButton(context)
     private val controls = LinearLayout(context)
     private var muted = false
@@ -65,9 +65,11 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         column.orientation = LinearLayout.VERTICAL
         column.gravity = Gravity.CENTER_HORIZONTAL
 
+        column.addView(transcript, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+
         status.typeface = Fonts.medium
         status.gravity = Gravity.CENTER
-        status.setPadding(dp(16), dp(16), dp(16), 0)
+        status.setPadding(dp(16), dp(4), dp(16), 0)
         if (io.github.kasecrab.razorback.BuildConfig.DEBUG) {
             // Long-press the status line to type a turn when there is no microphone to speak into.
             status.setOnLongClickListener {
@@ -80,32 +82,30 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
         orb.orb = if (app.prefs[Keys.REDUCE_MOTION]) Orbs.byId("lattice") else Orbs.byId(app.prefs[Keys.VOICE_ORB])
         orb.inLevel = { voice.inLevel }
         orb.outLevel = { voice.outLevel }
-        val side = minOf(dp(240), (resources.displayMetrics.widthPixels * 0.5f).toInt())
-        column.addView(orb, LinearLayout.LayoutParams(side, side).apply { topMargin = dp(4); bottomMargin = dp(4) })
-
-        column.addView(transcript, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+        halo.inLevel = { voice.inLevel }
+        halo.outLevel = { voice.outLevel }
+        halo.contentDescription = context.getString(R.string.cd_orb_style)
+        halo.setOnLongClickListener {
+            OrbPickerSheet(context) { orb.orb = it }.show()
+            true
+        }
 
         controls.orientation = LinearLayout.HORIZONTAL
         controls.gravity = Gravity.CENTER
-        controls.setPadding(0, dp(12), 0, dp(24))
+        controls.setPadding(0, dp(2), 0, dp(12))
         mute.iconRes = R.drawable.ic_mic
         mute.filled = true
         mute.tone = IconButton.Tone.PRIMARY
         mute.contentDescription = context.getString(R.string.cd_mute)
         mute.setOnClickListener { toggleMute() }
-        controls.addView(mute, LinearLayout.LayoutParams(dp(60), dp(60)).apply { marginEnd = dp(28) })
-        style.iconRes = R.drawable.ic_image
-        style.filled = true
-        style.tone = IconButton.Tone.PRIMARY
-        style.contentDescription = context.getString(R.string.cd_orb_style)
-        style.setOnClickListener { OrbPickerSheet(context) { orb.orb = it }.show() }
-        controls.addView(style, LinearLayout.LayoutParams(dp(60), dp(60)).apply { marginEnd = dp(28) })
+        controls.addView(mute, LinearLayout.LayoutParams(dp(52), dp(52)).apply { marginEnd = dp(36) })
+        controls.addView(halo, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
         end.iconRes = R.drawable.ic_close
         end.filled = true
         end.tone = IconButton.Tone.PRIMARY
         end.contentDescription = context.getString(R.string.voice_end)
         end.setOnClickListener { context.nav.pop() }
-        controls.addView(end, LinearLayout.LayoutParams(dp(60), dp(60)))
+        controls.addView(end, LinearLayout.LayoutParams(dp(52), dp(52)).apply { marginStart = dp(36) })
         column.addView(controls, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
@@ -169,8 +169,8 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
     override fun onThemeChanged(theme: Theme) {
         super.onThemeChanged(theme)
         status.setTextColor(theme.textSecondary)
-        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.SECONDARY))
-        orb.onThemeChanged(theme)
+        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.CAPTION))
+        halo.onThemeChanged(theme)
         transcript.onThemeChanged(theme)
     }
 
@@ -187,6 +187,7 @@ class VoiceScreen(context: Context) : Screen(context), VoiceSession.Listener {
             VoiceSession.State.RECONNECTING -> context.getString(R.string.voice_reconnecting)
             VoiceSession.State.ERROR -> context.getString(R.string.went_wrong)
         }
+        halo.state = state
         orb.state = when (state) {
             VoiceSession.State.LISTENING -> Orb.LISTENING
             VoiceSession.State.USER_SPEAKING -> Orb.USER_SPEAKING
