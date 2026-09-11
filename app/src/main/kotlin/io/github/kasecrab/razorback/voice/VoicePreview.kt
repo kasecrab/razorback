@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Handler
+import android.os.Looper
 import io.github.kasecrab.razorback.core.Http
 import io.github.kasecrab.razorback.core.HttpException
 import java.io.File
@@ -28,6 +30,8 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
 
     private var track: AudioTrack? = null
     private var job: Job? = null
+    private val main = Handler(Looper.getMainLooper())
+    private val finish = Runnable { stop() }
 
     fun toggle(voice: Voice, scope: CoroutineScope) {
         if (playing == voice.id) {
@@ -61,6 +65,7 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
     fun stop() {
         job?.cancel()
         job = null
+        main.removeCallbacks(finish)
         track?.let {
             try {
                 it.stop()
@@ -113,21 +118,25 @@ class VoicePreview(private val context: Context, private val key: () -> String?)
             .setBufferSizeInBytes(pcm.size)
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
-        if (t.state != AudioTrack.STATE_INITIALIZED) {
+        // A static track reports STATE_NO_STATIC_DATA until its buffer is written; only
+        // STATE_UNINITIALIZED means the track could not be made.
+        if (t.state == AudioTrack.STATE_UNINITIALIZED || t.write(pcm, 0, pcm.size) < pcm.size) {
             t.release()
             stop()
             return
         }
-        t.write(pcm, 0, pcm.size)
         t.setNotificationMarkerPosition(frames)
         t.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
             override fun onMarkerReached(track: AudioTrack) {
-                if (playing == id) stop()
+                if (playing == id) main.post(finish)
             }
 
             override fun onPeriodicNotification(track: AudioTrack) {}
         })
         track = t
         t.play()
+        // The end marker is not delivered on every device, so the sample's own length ends it too.
+        main.postDelayed(finish, frames * 1000L / Playback.SAMPLE_RATE + 200L)
     }
+
 }
