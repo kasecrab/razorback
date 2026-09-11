@@ -34,6 +34,19 @@ class OpenRouterModelsTest {
     }
 
     @Test
+    fun speedIsTheRequestWeightedMedianThroughputAcrossEndpoints() {
+        val json = JSONObject(
+            """{"data":{"id":"a/a","endpoints":[
+            {"throughput_last_30m":{"p50":100},"perf_last_30m_by_workload":{"text_generation":{"request_count":300}}},
+            {"throughput_last_30m":{"p50":20},"perf_last_30m_by_workload":{"text_generation":{"request_count":100}}},
+            {"throughput_last_30m":{"p50":0}},
+            {"name":"never served"}]}}""",
+        )
+        assertEquals(80.0, OpenRouterModels.parseSpeed(json)!!, 1e-9)
+        assertEquals(null, OpenRouterModels.parseSpeed(JSONObject("""{"data":{"endpoints":[]}}""")))
+    }
+
+    @Test
     fun aCategoryListKeepsOnlyTheIdsInTheRoutersOrder() {
         val json = JSONObject("""{"data":[{"id":"z/b","name":"B"},{"name":"no id"},{"id":"a/a"}]}""")
         assertEquals(listOf("z/b", "a/a"), OpenRouterModels.parseIds(json))

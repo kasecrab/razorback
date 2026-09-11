@@ -38,6 +38,16 @@ class RankingTest {
     }
 
     @Test
+    fun fastestOrdersMeasuredModelsAndCandidatesAreTheScoredAndTheMostUsed() {
+        val speeds = mapOf("d/tiny" to 300.0, "a/big" to 40.0, "a/big:batch" to 900.0, "g/unscored" to 120.0)
+        assertEquals(listOf("d/tiny", "g/unscored", "a/big"), Ranking.fastest(models, speeds).map { it.id })
+        assertEquals(
+            listOf("g/unscored", "a/big", "b/mid", "c/cheap", "d/tiny"),
+            Ranking.speedCandidates(models, listOf("g/unscored", "e/free:free", "a/big")),
+        )
+    }
+
+    @Test
     fun newestFirstAndPopularKeepsTheRoutersOrder() {
         assertEquals("b/mid", Ranking.newest(models).first().id)
         assertEquals(listOf("d/tiny", "a/big"), Ranking.popular(models, listOf("d/tiny", "x/missing", "a/big")).map { it.id })

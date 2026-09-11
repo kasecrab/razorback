@@ -71,5 +71,24 @@ object OpenRouterModels {
         return out
     }
 
+    /**
+     * A model's speed from its endpoints page: median output tokens per second of each
+     * endpoint over the last half hour, averaged by how many requests each one served, so
+     * the number is what a request actually tends to get. Null when nothing has been measured.
+     */
+    fun parseSpeed(json: JSONObject): Double? {
+        var weighted = 0.0
+        var weight = 0.0
+        json.obj("data")?.arr("endpoints")?.forEachObject { e ->
+            val tps = e.obj("throughput_last_30m")?.dbl("p50") ?: return@forEachObject
+            if (tps <= 0.0) return@forEachObject
+            val requests = e.obj("perf_last_30m_by_workload")?.obj("text_generation")?.dbl("request_count") ?: 1.0
+            val w = maxOf(requests, 1.0)
+            weighted += tps * w
+            weight += w
+        }
+        return if (weight > 0.0) weighted / weight else null
+    }
+
     private fun perMillion(perToken: Double?): Double = (perToken ?: 0.0) * 1_000_000.0
 }

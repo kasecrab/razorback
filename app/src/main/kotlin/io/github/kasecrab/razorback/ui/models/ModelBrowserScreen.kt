@@ -32,9 +32,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Where a model is found. Opens on the router's most used, with the smartest, the best
- * value, the free and the newest a tap away, and the whole list last; typing searches
- * everything. Tap to use, star to keep, hold for the model's page on the router.
+ * Where a model is found. Opens on the fastest, with the router's most used, the smartest,
+ * the best value, the free and the newest a tap away, and the whole list last; typing
+ * searches everything. Tap to use, star to keep, hold for the model's page on the router.
  * [select] false means a tap only reports the model through [onPicked] instead of making it the chat default.
  */
 class ModelBrowserScreen(context: Context, private val select: Boolean = true, private val onPicked: ((ModelInfo) -> Unit)? = null) : Screen(context) {
@@ -52,10 +52,11 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
     private val adapter = Adapter()
     private val shown = ArrayList<ModelInfo>()
     private val chips = ArrayList<Pair<Ranking.Tab, Chip>>(6)
-    private var tab = Ranking.Tab.POPULAR
+    private var tab = Ranking.Tab.FASTEST
     private var query = ""
     private var loadJob: Job? = null
     private var popularJob: Job? = null
+    private var speedJob: Job? = null
     private val monthFmt = SimpleDateFormat("MMM yyyy", Locale.getDefault())
 
     private val onCatalog: () -> Unit = { refresh() }
@@ -79,6 +80,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
         tabs.orientation = LinearLayout.HORIZONTAL
         tabs.setPadding(dp(12), 0, dp(12), 0)
         for ((t, label) in listOf(
+            Ranking.Tab.FASTEST to R.string.tab_fastest,
             Ranking.Tab.POPULAR to R.string.tab_popular,
             Ranking.Tab.SMARTEST to R.string.tab_smartest,
             Ranking.Tab.VALUE to R.string.tab_value,
@@ -122,6 +124,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
     override fun onExit() {
         loadJob?.cancel()
         popularJob?.cancel()
+        speedJob?.cancel()
         catalog.removeOnChange(onCatalog)
         favorites.removeOnChange(onFavorites)
     }
@@ -131,6 +134,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
         for ((k, c) in chips) c.active = k == t
         hint.setText(
             when (t) {
+                Ranking.Tab.FASTEST -> R.string.tab_fastest_hint
                 Ranking.Tab.POPULAR -> R.string.tab_popular_hint
                 Ranking.Tab.SMARTEST -> R.string.tab_smartest_hint
                 Ranking.Tab.VALUE -> R.string.tab_value_hint
@@ -140,6 +144,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
             },
         )
         if (t == Ranking.Tab.POPULAR && catalog.popular.isEmpty()) loadPopular(force = false)
+        if (t == Ranking.Tab.FASTEST) loadSpeeds(force = false)
         refresh()
         list.scrollToPosition(0)
     }
@@ -171,7 +176,28 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
             } else {
                 status.visibility = View.GONE
                 refresh()
+                if (tab == Ranking.Tab.FASTEST || force) loadSpeeds(force)
             }
+        }
+    }
+
+    /**
+     * Speed is one endpoints page per model, so it is measured for the scored and the most
+     * used only, and only once the catalogue and the most used list are in to say which.
+     */
+    private fun loadSpeeds(force: Boolean) {
+        if (catalog.models.isEmpty()) return
+        if (speedJob?.isActive == true && !force) return
+        speedJob?.cancel()
+        speedJob = context.uiScope.launch {
+            if (catalog.popular.isEmpty()) catalog.loadPopular(false)
+            val err = catalog.loadSpeeds(Ranking.speedCandidates(catalog.models, catalog.popular), force)
+            if (err != null && catalog.speeds.isEmpty() && tab == Ranking.Tab.FASTEST && query.isEmpty()) {
+                status.tone = Caption.Tone.DANGER
+                status.text = err.message ?: err.javaClass.simpleName
+                status.visibility = View.VISIBLE
+            }
+            refresh()
         }
     }
 
@@ -206,6 +232,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
         } else {
             shown.addAll(
                 when (tab) {
+                    Ranking.Tab.FASTEST -> Ranking.fastest(models, catalog.speeds)
                     Ranking.Tab.POPULAR -> Ranking.popular(models, catalog.popular)
                     Ranking.Tab.SMARTEST -> Ranking.smartest(models)
                     Ranking.Tab.VALUE -> Ranking.value(models)
@@ -218,8 +245,12 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
         adapter.notifyDataSetChanged()
         if (models.isNotEmpty()) {
             val waiting = !searching && tab == Ranking.Tab.POPULAR && catalog.popular.isEmpty() && popularJob?.isActive == true
-            status.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
-            if (shown.isEmpty()) {
+            val measuring = !searching && tab == Ranking.Tab.FASTEST && catalog.speedsTotal > 0
+            status.visibility = if (shown.isEmpty() || measuring) View.VISIBLE else View.GONE
+            if (measuring) {
+                status.tone = Caption.Tone.NORMAL
+                status.text = context.getString(R.string.measuring_speed, catalog.speedsDone, catalog.speedsTotal)
+            } else if (shown.isEmpty()) {
                 status.tone = Caption.Tone.NORMAL
                 status.setText(if (waiting) R.string.loading_models else R.string.no_models)
             }
@@ -229,6 +260,7 @@ class ModelBrowserScreen(context: Context, private val select: Boolean = true, p
     /** What the row says under the name, beyond the price: the number the list is ordered by. */
     private fun note(m: ModelInfo): String? = when {
         query.isNotEmpty() -> null
+        tab == Ranking.Tab.FASTEST -> catalog.speeds[m.id]?.let { context.getString(R.string.model_speed, it.toInt()) }
         tab == Ranking.Tab.NEW -> age(m.created)
         tab == Ranking.Tab.SMARTEST || tab == Ranking.Tab.VALUE || tab == Ranking.Tab.FREE ->
             m.intelligence?.let { context.getString(R.string.model_score, it.toInt()) }

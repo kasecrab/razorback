@@ -9,7 +9,22 @@ import io.github.kasecrab.razorback.model.ModelInfo
  */
 object Ranking {
 
-    enum class Tab { POPULAR, SMARTEST, VALUE, FREE, NEW, ALL }
+    enum class Tab { FASTEST, POPULAR, SMARTEST, VALUE, FREE, NEW, ALL }
+
+    /** Measured models, most output tokens per second first. */
+    fun fastest(models: List<ModelInfo>, speeds: Map<String, Double>): List<ModelInfo> =
+        models.filter { !it.id.contains(':') && speeds.containsKey(it.id) }.sortedByDescending { speeds[it.id] }
+
+    /**
+     * Which models are worth measuring: the scored ones and the most used, without
+     * variants. Measuring is one request per model, so the long tail is left out.
+     */
+    fun speedCandidates(models: List<ModelInfo>, popular: List<String>): List<String> {
+        val out = LinkedHashSet<String>()
+        for (id in popular) if (!id.contains(':')) out.add(id)
+        for (m in scored(models)) out.add(m.id)
+        return out.toList()
+    }
 
     /** Everything a chat can use, A to Z by id. */
     fun all(models: List<ModelInfo>): List<ModelInfo> = models.filter { !it.isBatch }

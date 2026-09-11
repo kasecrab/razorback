@@ -47,12 +47,14 @@
     <string name="thinking">Thinking</string>
     <string name="thinking_unsupported">This model does not expose reasoning</string>
     <string name="thinking_mandatory">This model always thinks; Off means its own default</string>
+    <string name="tab_fastest">Fastest</string>
     <string name="tab_popular">Popular</string>
     <string name="tab_smartest">Smartest</string>
     <string name="tab_value">Value</string>
     <string name="tab_free">Free</string>
     <string name="tab_new">New</string>
     <string name="tab_all">All</string>
+    <string name="tab_fastest_hint">Output tokens per second on OpenRouter, measured today</string>
     <string name="tab_popular_hint">Most used for programming on OpenRouter</string>
     <string name="tab_smartest_hint">By the Artificial Analysis intelligence index</string>
     <string name="tab_value_hint">Intelligence per dollar, among the smarter half</string>
@@ -60,6 +62,8 @@
     <string name="tab_new_hint">Newest on OpenRouter first</string>
     <string name="tab_all_hint">Every model, A to Z</string>
     <string name="model_score">Score %d</string>
+    <string name="model_speed">%d tok/s</string>
+    <string name="measuring_speed">Measuring speed, %1$d of %2$d…</string>
     <string name="price_free">Free</string>
     <string name="price_per_million">%1$s in · %2$s out per M</string>
     <string name="age_today">Today</string>
