@@ -20,6 +20,8 @@ import java.io.IOException
 object ImagePrep {
 
     private const val MAX_EDGE = 1568
+    /** About 18 MB of picture, well past anything a model returns. */
+    private const val MAX_DATA_URL_CHARS = 24 * 1024 * 1024
     private const val QUALITY = 85
     const val DIR = "attachments"
 
@@ -42,6 +44,8 @@ object ImagePrep {
     fun importDataUrl(context: Context, dataUrl: String): Attachment {
         val comma = dataUrl.indexOf(',')
         if (!dataUrl.startsWith("data:") || comma < 0) throw IOException("not a data url")
+        // Whatever the model sends is decoded into memory whole; past this it is refused, not attempted.
+        if (dataUrl.length - comma > MAX_DATA_URL_CHARS) throw IOException("generated image is too large")
         val bytes = Base64.decode(dataUrl.substring(comma + 1), Base64.DEFAULT)
         val source = ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes))
         return save(context, decode(source), "generated")
