@@ -30,6 +30,18 @@ class TextField(context: Context) : FrameLayout(context), Themed {
         set(value) {
             field = value
             reveal.visibility = if (value) View.VISIBLE else View.GONE
+            // The mask below is a drawing trick and nothing more. To the keyboard, to
+            // autofill and to anything reading the screen out loud, a plain text field is
+            // a plain text field, and an API key typed into one is learned, offered back
+            // somewhere else, and spoken. Saying it is a password stops all three. The
+            // visible variation, because the hiding here is this view's own and comes with
+            // its own way to look.
+            edit.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+                if (value) InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else 0
+            edit.importantForAutofill = if (value) View.IMPORTANT_FOR_AUTOFILL_NO else View.IMPORTANT_FOR_AUTOFILL_AUTO
+            // A password input type takes the typeface to monospace with it, and this
+            // field looks the way it looked.
+            edit.typeface = Fonts.regular
             applyMask()
         }
 
