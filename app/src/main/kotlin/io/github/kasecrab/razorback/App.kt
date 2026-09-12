@@ -46,7 +46,13 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        if (BuildConfig.DEBUG) prefs.rawString(DEV_BASE_URL)?.let { io.github.kasecrab.razorback.provider.openrouter.OpenRouter.BASE = it }
+        // Held to the same hosts on the way out of the preferences as on the way in: one
+        // written down by a build that did not ask is not one to start using now.
+        if (BuildConfig.DEBUG) {
+            prefs.rawString(DEV_BASE_URL)
+                ?.takeIf { io.github.kasecrab.razorback.provider.openrouter.OpenRouter.mockServer(it) }
+                ?.let { io.github.kasecrab.razorback.provider.openrouter.OpenRouter.BASE = it }
+        }
         scope.launch { store.repairStreaming() }
     }
 
