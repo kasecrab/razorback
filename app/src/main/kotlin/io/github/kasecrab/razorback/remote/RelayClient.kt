@@ -39,7 +39,6 @@ class RelayClient(
 
     private val main = Handler(Looper.getMainLooper())
     private val keys = Crypto.Keys(code)
-    private val plink = Crypto.newLink()
 
     @Volatile private var armed = false
     private var ws: WebSocketClient? = null
@@ -51,7 +50,7 @@ class RelayClient(
 
     // Set on the reader thread, read on the main thread when something is sent.
     @Volatile private var deskLink: ByteArray? = null
-    @Volatile private var sealer: Crypto.Sealer? = null
+    @Volatile private var outgoing: Crypto.Outgoing? = null
     @Volatile private var opener: Crypto.Opener? = null
     /** How far each machine link has been read this session, so a link that comes round again does not start from nought; the least recently seen goes first when full. */
     private val windows = object : LinkedHashMap<String, Long>(16, 0.75f, true) {
@@ -72,14 +71,13 @@ class RelayClient(
 
     /** Send something to the machine. Silently dropped while the link is down. */
     fun send(payload: ByteArray) {
-        val seal = sealer ?: return
-        val desk = deskLink ?: return
-        val (seq, ct) = seal.seal(payload)
-        ws?.sendText(Frames.command(Crypto.hex(desk), Crypto.hex(plink), seq, ct))
+        val out = outgoing ?: return
+        val (seq, ct) = out.seal(payload)
+        ws?.sendText(Frames.command(Crypto.hex(out.desk), Crypto.hex(out.plink), seq, ct))
     }
 
     /** Whether anything said now would actually reach the machine. */
-    fun ready(): Boolean = sealer != null && ws?.isOpen == true
+    fun ready(): Boolean = outgoing != null && ws?.isOpen == true
 
     private fun dial() {
         if (!armed || ws != null) return
@@ -123,9 +121,7 @@ class RelayClient(
         when (val frame = Frames.readEnvelope(text)) {
             is Frames.Envelope.Evt -> {
                 cursor = frame.n
-                rekey(frame.link)
-                val open = opener ?: return
-                val opened = open.open(frame.seq, frame.ct)
+                val opened = openEvent(frame) ?: return
                 // A replay is expected: the relay hands back what it kept,
                 // and some of it may already have been read.
                 if (opened.why == Crypto.Refusal.REPLAY) return
@@ -158,27 +154,41 @@ class RelayClient(
     }
 
     /**
+     * One event frame, opened under the machine link it names.
+     *
      * The machine's key changes when it reconnects, and every frame says which
-     * link it belongs to, so the change is noticed rather than announced.
+     * link it belongs to, so the change is noticed rather than announced. What
+     * the envelope says is the relay's word and nobody else's, though, and the
+     * relay is not trusted with a word of what it carries: a link this phone
+     * is not already on takes over only once a frame sealed under it has
+     * actually opened. An envelope that could move the link by itself would
+     * let anything forwarding frames name a link at will, and a link named
+     * twice would put a second stream of commands, counting from one again,
+     * under a key the first stream had already spent those numbers on.
      */
-    private fun rekey(link: String) {
-        val desk = Crypto.unhex(link) ?: return
-        if (deskLink?.contentEquals(desk) == true) return
+    private fun openEvent(frame: Frames.Envelope.Evt): Crypto.Opened? {
+        val desk = Crypto.unhex(frame.link) ?: return null
+        if (deskLink?.contentEquals(desk) == true) return opener?.open(frame.seq, frame.ct)
+        // What the machine sends is sealed for every phone at once, so no phone
+        // link goes into its key or its seal; zeros stand in for one.
+        val none = ByteArray(Crypto.LINK_BYTES)
+        val fresh = Crypto.Opener(
+            keys.linkKey(Crypto.Dir.D2P, desk, none), Crypto.Dir.D2P, desk, none,
+        ).also { candidate -> windows[frame.link]?.let { candidate.resumeFrom(it) } }
+        val opened = fresh.open(frame.seq, frame.ct)
+        if (opened.plain == null) return null
         deskLink?.let { windows[Crypto.hex(it)] = opener?.seq ?: 0L }
         deskLink = desk
-        opener = Crypto.Opener(
-            keys.linkKey(Crypto.Dir.D2P, desk, plink), Crypto.Dir.D2P, desk, ByteArray(16),
-        ).also { fresh -> windows[link]?.let { fresh.resumeFrom(it) } }
-        sealer = Crypto.Sealer(
-            keys.linkKey(Crypto.Dir.P2D, desk, plink), Crypto.Dir.P2D, desk, plink,
-        )
+        opener = fresh
+        outgoing = keys.outgoing(desk)
+        return opened
     }
 
     /** The one place that decides whether to dial again. */
     private fun dropped(socket: WebSocketClient, error: Throwable?) {
         if (ws !== socket) return
         ws = null
-        sealer = null
+        outgoing = null
         opener = null
         deskLink = null
         main.post { listener.onDown() }

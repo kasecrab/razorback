@@ -62,6 +62,23 @@ object Crypto {
             return expand(extract(LINK_SALT.toByteArray(), base), info, 32)
         }
 
+        /**
+         * A fresh stream of commands to the machine on [desk].
+         *
+         * The phone link is drawn here rather than kept by the caller, because
+         * it is half of what the sealing key is derived from and a sealer's
+         * count starts again at one every time a sealer is made. Drawing the
+         * two together is what makes the sentence above true of a single
+         * phone: a stream built a second time for the same machine link — the
+         * socket dropped and was dialled again, or the relay named that link
+         * again — runs under a key that has never sealed anything, so no
+         * number is ever spent twice.
+         */
+        fun outgoing(desk: ByteArray): Outgoing {
+            val plink = newLink()
+            return Outgoing(desk, plink, Sealer(linkKey(Dir.P2D, desk, plink), Dir.P2D, desk, plink))
+        }
+
         /** The signature that gets a socket open. */
         fun signConnect(role: String, ts: Long, nonce: String): String {
             val mac = Mac.getInstance("HmacSHA256")
@@ -79,6 +96,9 @@ object Crypto {
      *
      * The sequence number is the nonce, so it is never used twice under one
      * key and never has to travel separately — it is already in the envelope.
+     * That holds only while a sealer is the one and only sealer its key will
+     * ever have, which is why a phone's are made by [Keys.outgoing], with a
+     * phone link of their own, and never by handing the same link to two.
      */
     class Sealer(key: ByteArray, private val dir: Dir,
                  private val link: ByteArray, private val plink: ByteArray) {
@@ -93,6 +113,18 @@ object Crypto {
             cipher.updateAAD(aad(link, if (dir == Dir.D2P) null else plink, dir, seq))
             return seq to b64u(cipher.doFinal(plain))
         }
+    }
+
+    /**
+     * One stream of commands to the machine: which machine link it seals for,
+     * the phone link it names itself by, and the sealer that numbers it. All
+     * three are made in one go by [Keys.outgoing] and travel together, so a
+     * frame can never go out labelled with one pair of links and sealed under
+     * another, and a new stream always means a new key.
+     */
+    class Outgoing(val desk: ByteArray, val plink: ByteArray, private val sealer: Sealer) {
+        /** Seal one payload, returning the number it went out under. */
+        fun seal(plain: ByteArray): Pair<Long, String> = sealer.seal(plain)
     }
 
     /** Why a frame did not open. */

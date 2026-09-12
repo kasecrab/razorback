@@ -2,6 +2,8 @@ package io.github.kasecrab.razorback.remote
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -81,6 +83,26 @@ class CryptoTest {
         // AES-GCM with a fixed key and nonce is deterministic, so this is the
         // same ciphertext the harness produced, byte for byte.
         assertEquals("YXdOxMlHioo89WUSbRfyjSlZukCEg2kgEhLrwA", ct)
+    }
+
+    @Test
+    fun aSecondStreamToTheSameMachineDoesNotSpendTheSameNumberAgain() {
+        // A socket that dropped, or a machine link named a second time, means
+        // a fresh stream of commands whose count starts at one again. That is
+        // only safe if the key underneath is a new one, so the phone link the
+        // key binds is drawn with the stream rather than kept across them.
+        val keys = Crypto.Keys(code)
+        val first = keys.outgoing(link)
+        val second = keys.outgoing(link)
+        assertFalse(first.plink.contentEquals(second.plink))
+        val (firstSeq, firstCt) = first.seal("""{"k":"list"}""".toByteArray())
+        val (secondSeq, secondCt) = second.seal("""{"k":"list"}""".toByteArray())
+        assertEquals(1L, firstSeq)
+        assertEquals(1L, secondSeq)
+        // The same words under the same number, twice. Under one key those
+        // would be the same bytes, and the keystream would be there for the
+        // reading; under two keys they are not.
+        assertNotEquals(firstCt, secondCt)
     }
 
     @Test
