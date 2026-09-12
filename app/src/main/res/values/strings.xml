@@ -281,8 +281,13 @@
     <string name="remote_other_dir">Another directory…</string>
     <string name="remote_starting_in">Starting a session in %s</string>
     <string name="pair_title">Pair with %s?</string>
-    <string name="pair_text">This phone will be able to watch and drive sessions on that machine. Anyone who holds the code can do the same.</string>
-    <string name="pair_replaces">This replaces the pairing with %s. Anyone who holds the new code can watch and drive sessions on that machine.</string>
+    <string name="pair_text">Hub %1$s…, the same short name the machine printed when it made this pairing. This phone will be able to watch and drive sessions on it, and so can anyone else holding the code.</string>
+    <string name="pair_replaces">Hub %1$s…, the same short name the machine printed when it made this pairing. This phone is already paired with %2$s, and pairing here drops that one.</string>
+    <string name="pair_replace">Replace the pairing with %s…</string>
+    <string name="pair_replace_title">Drop the pairing with %s?</string>
+    <string name="pair_replace_text">This phone stops watching that machine. Having it back means running ah remote pair on it again.</string>
+    <string name="pair_replace_confirm">Drop %s and pair</string>
+    <string name="pair_keep">Keep %s</string>
     <string name="pair_not_now">Not now</string>
     <string name="pair_bad_title">That is not a pairing</string>
     <string name="pair_bad_text">The link did not hold an https relay and a pairing code.</string>

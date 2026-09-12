@@ -36,6 +36,7 @@ class MainActivity : Activity() {
     private var imeAnimating = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var uiContext: UiContext
+    private var pairSheet: io.github.kasecrab.razorback.ui.widget.ActionSheet? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,27 +103,66 @@ class MainActivity : Activity() {
      * Any app on the phone can fire a pairing link at this activity, so nothing is written
      * until the person has read what it is and said yes: the relay has to be https, the
      * code has to be a code, and a pairing already held is named before it is replaced.
+     *
+     * A hostname on its own is a poor thing to decide on, since one relay address reads
+     * much like another, so the sheet also names the hub the code leads to — the same
+     * first eight characters `ah remote pair` printed on the machine. Two short strings to
+     * compare is a better question than a name somebody else chose.
+     *
+     * Replacing a pairing already held is not one tap either: a second sheet says which
+     * machine is being let go of, in the words on the button.
      */
     private fun offerPairing(url: String, code: String) {
+        // A link can be fired again and again, and a sheet landing on top of a sheet is
+        // how a person taps something they were only part-way through reading.
+        if (pairSheet != null) return
         val remote = App.instance.remote
         val relay = io.github.kasecrab.razorback.remote.RelayUrl
-        val sound = relay.acceptable(url) && io.github.kasecrab.razorback.remote.Codes.parse(code) != null
-        if (!sound) {
+        val raw = io.github.kasecrab.razorback.remote.Codes.parse(code)
+        if (raw == null || !relay.acceptable(url)) {
             io.github.kasecrab.razorback.ui.core.Haptics.reject()
-            io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
-                .header(getString(R.string.pair_bad_title), getString(R.string.pair_bad_text))
-                .show()
+            showPairSheet(
+                io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
+                    .header(getString(R.string.pair_bad_title), getString(R.string.pair_bad_text)),
+            )
             return
         }
+        val hub = io.github.kasecrab.razorback.remote.Crypto.Keys(raw).hub.take(8)
         val held = if (remote.paired) remote.machine?.host ?: relay.host(App.instance.prefs[io.github.kasecrab.razorback.core.Keys.RELAY_URL]) else null
-        val text = if (held != null) getString(R.string.pair_replaces, held) else getString(R.string.pair_text)
-        io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
-            .header(getString(R.string.pair_title, relay.host(url)), text)
-            .add(R.drawable.ic_check, getString(R.string.remote_pair)) {
-                if (remote.pair(url, code)) io.github.kasecrab.razorback.ui.core.Haptics.confirm()
+        val take = { if (remote.pair(url, code)) io.github.kasecrab.razorback.ui.core.Haptics.confirm() }
+        val sheet = io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
+            .header(
+                getString(R.string.pair_title, relay.host(url)),
+                if (held != null) getString(R.string.pair_replaces, hub, held) else getString(R.string.pair_text, hub),
+            )
+        if (held == null) {
+            sheet.add(R.drawable.ic_check, getString(R.string.remote_pair)) { take() }
+        } else {
+            sheet.add(R.drawable.ic_check, getString(R.string.pair_replace, held), danger = true) {
+                showPairSheet(
+                    io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
+                        .header(getString(R.string.pair_replace_title, held), getString(R.string.pair_replace_text))
+                        .add(R.drawable.ic_trash, getString(R.string.pair_replace_confirm, held), danger = true) { take() }
+                        .add(R.drawable.ic_close, getString(R.string.pair_keep, held)) {},
+                )
             }
-            .add(R.drawable.ic_close, getString(R.string.pair_not_now), danger = true) {}
-            .show()
+        }
+        showPairSheet(sheet.add(R.drawable.ic_close, getString(R.string.pair_not_now), danger = true) {})
+    }
+
+    /**
+     * The one pairing sheet that is up, so a second link finds the door shut. A sheet on
+     * its way out lets go only if nothing has taken its place: the first sheet of a
+     * two-step replace is still animating away while the second is already on screen.
+     *
+     * The panel refuses a touch that arrived through something drawn over it. A pairing is
+     * exactly the tap another app would like to place a window underneath.
+     */
+    private fun showPairSheet(sheet: io.github.kasecrab.razorback.ui.widget.ActionSheet) {
+        pairSheet = sheet
+        sheet.panel.filterTouchesWhenObscured = true
+        sheet.onDismiss = { if (pairSheet === sheet) pairSheet = null }
+        sheet.show()
     }
 
     override fun onStart() {
