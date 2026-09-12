@@ -71,7 +71,10 @@ class MainActivity : Activity() {
         handleIntent(intent)
     }
 
-    /** razorback://chat/<id> from a notification opens that conversation. */
+    /**
+     * What arrives from outside: a pairing link, or one of this app's own notifications
+     * asking for a conversation to be brought to the front.
+     */
     private fun handleIntent(intent: Intent?) {
         if (BuildConfig.DEBUG && intent?.hasExtra("base_url") == true) {
             // adb shell am start ... --es base_url http://10.0.2.2:8787 points a debug build at a mock
@@ -97,6 +100,12 @@ class MainActivity : Activity() {
             return
         }
         if (data.host != "chat") return
+        // A chat comes from a notification this app posted and from nowhere else. The
+        // filter for it is gone from the manifest, and since this activity is the launcher
+        // it is exported anyway — any app could still name it and hand it an address — so
+        // the notification says a word only this app knows. An id is 32 bits of randomness
+        // behind a guessable timestamp, which is not much to hold a conversation shut with.
+        if (intent.getStringExtra(Notifs.EXTRA_TOKEN) != App.instance.openToken) return
         val id = data.lastPathSegment ?: return
         intent.data = null
         scope.launch {

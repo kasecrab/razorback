@@ -43,6 +43,26 @@ class App : Application() {
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    /**
+     * The word one of this app's own notifications says to prove that is what it is.
+     *
+     * The activity has to be exported, since it is the launcher, so any app on the phone
+     * can start it with whatever extras it likes; asking it to bring a particular
+     * conversation to the front is not something another app gets to do. A notification is
+     * built here, held by the system, and its extras are readable by nobody else. The word
+     * lives in this app's own preferences so a notification tapped after a restart still
+     * proves itself.
+     */
+    val openToken: String by lazy {
+        prefs.rawString(OPEN_TOKEN) ?: newOpenToken().also { prefs.putRawString(OPEN_TOKEN, it) }
+    }
+
+    private fun newOpenToken(): String {
+        val raw = ByteArray(16)
+        java.security.SecureRandom().nextBytes(raw)
+        return raw.joinToString("") { "%02x".format(it) }
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -58,6 +78,7 @@ class App : Application() {
 
     companion object {
         const val DEV_BASE_URL = "dev.base_url"
+        private const val OPEN_TOKEN = "notif.open_token"
         lateinit var instance: App
             private set
     }

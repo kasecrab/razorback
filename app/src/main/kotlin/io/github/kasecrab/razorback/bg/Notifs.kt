@@ -22,6 +22,9 @@ object Notifs {
     const val ID_REMOTE = 4
     const val ID_REMOTE_ASK = 5
 
+    /** What a notification shows to say it is one of this app's own; see App.openToken. */
+    const val EXTRA_TOKEN = "open_token"
+
     fun ensureChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL_TURNS, context.getString(R.string.channel_turns), NotificationManager.IMPORTANCE_LOW))
@@ -32,7 +35,13 @@ object Notifs {
 
     fun openChat(context: Context, conversationId: String?): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW)
-        if (conversationId != null) intent.data = Uri.parse("razorback://chat/$conversationId")
+        if (conversationId != null) {
+            // The address is still what tells two notifications apart. What says the
+            // notification is ours is the word beside it, which another app cannot read
+            // out of a pending intent the system is holding.
+            intent.data = Uri.parse("razorback://chat/$conversationId")
+            intent.putExtra(EXTRA_TOKEN, io.github.kasecrab.razorback.App.instance.openToken)
+        }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         return PendingIntent.getActivity(context, conversationId.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }

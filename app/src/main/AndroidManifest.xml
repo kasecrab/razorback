@@ -40,7 +40,8 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="razorback" android:host="chat" />
+                <!-- Only pair. A chat is opened by this app's own notifications, which
+                     carry an explicit intent and need no filter to arrive. -->
                 <data android:scheme="razorback" android:host="pair" />
             </intent-filter>
         </activity>
