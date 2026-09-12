@@ -86,9 +86,12 @@ class RelayClient(
         val ts = System.currentTimeMillis()
         val nonce = Crypto.newNonce()
         val signature = keys.signConnect("phone", ts, nonce)
+        // The signature rides in a header, not the query: a URL is what request logs,
+        // proxies and access records keep. The nonce is fresh on every dial, since the
+        // relay honours each one exactly once.
         val dialled = WebSocketClient(
-            "${RelayUrl.socket(url)}/hub/${keys.hub}?r=phone&ts=$ts&n=${esc(nonce)}&h=${esc(signature)}",
-            emptyMap(),
+            "${RelayUrl.socket(url)}/hub/${keys.hub}?r=phone&ts=$ts&n=${esc(nonce)}",
+            mapOf(AUTH_HEADER to signature),
             object : WebSocketClient.Listener {
                 override fun onOpen(ws: WebSocketClient) {
                     if (this@RelayClient.ws !== ws) return
@@ -202,6 +205,7 @@ class RelayClient(
 
     private companion object {
         const val WINDOWS_KEPT = 64
+        const val AUTH_HEADER = "x-ah-auth"
     }
 
     private fun esc(s: String): String = buildString {
