@@ -23,7 +23,7 @@ class Secrets(private val prefs: Prefs) {
     fun get(name: String): String? {
         if (cache.containsKey(name)) return cache[name]
         val stored = prefs.rawString(PREFIX + name)
-        val value = if (stored == null) null else decrypt(stored)
+        val value = if (stored == null) null else decrypt(name, stored)
         cache[name] = value
         return value
     }
@@ -37,17 +37,33 @@ class Secrets(private val prefs: Prefs) {
 
     fun has(name: String): Boolean = get(name) != null
 
-    private fun decrypt(stored: String): String? = try {
+    /**
+     * One entry that will not open is dropped on its own: a stray or tampered value must
+     * not take the other keys with it. Only the keystore key itself being gone, which
+     * makes every entry unreadable at once, clears the store.
+     */
+    private fun decrypt(name: String, stored: String): String? = try {
         val blob = Base64.decode(stored, Base64.NO_WRAP)
         val cipher = Cipher.getInstance(TRANSFORM)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, blob, 0, IV_BYTES))
         String(cipher.doFinal(blob, IV_BYTES, blob.size - IV_BYTES), Charsets.UTF_8)
-    } catch (e: GeneralSecurityException) {
+    } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
         wipe(e)
+        null
+    } catch (e: java.security.UnrecoverableKeyException) {
+        wipe(e)
+        null
+    } catch (e: GeneralSecurityException) {
+        drop(name, e)
         null
     } catch (e: IllegalArgumentException) {
-        wipe(e)
+        drop(name, e)
         null
+    }
+
+    private fun drop(name: String, cause: Exception) {
+        Log.w("stored secret $name unreadable, dropping it", cause)
+        prefs.putRawString(PREFIX + name, null)
     }
 
     private fun encrypt(plain: String): String {
