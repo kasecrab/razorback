@@ -53,8 +53,10 @@ class RelayClient(
     @Volatile private var deskLink: ByteArray? = null
     @Volatile private var sealer: Crypto.Sealer? = null
     @Volatile private var opener: Crypto.Opener? = null
-    /** How far each machine link has been read this session, so a link that comes round again does not start from nought. */
-    private val windows = HashMap<String, Long>()
+    /** How far each machine link has been read this session, so a link that comes round again does not start from nought; the least recently seen goes first when full. */
+    private val windows = object : LinkedHashMap<String, Long>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean = size > WINDOWS_KEPT
+    }
 
     fun start(from: Long = 0) {
         cursor = from
@@ -160,7 +162,6 @@ class RelayClient(
         val desk = Crypto.unhex(link) ?: return
         if (deskLink?.contentEquals(desk) == true) return
         deskLink?.let { windows[Crypto.hex(it)] = opener?.seq ?: 0L }
-        if (windows.size > WINDOWS_KEPT) windows.clear()
         deskLink = desk
         opener = Crypto.Opener(
             keys.linkKey(Crypto.Dir.D2P, desk, plink), Crypto.Dir.D2P, desk, ByteArray(16),
