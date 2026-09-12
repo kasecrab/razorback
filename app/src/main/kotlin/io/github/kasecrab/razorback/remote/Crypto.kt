@@ -79,6 +79,19 @@ object Crypto {
             return Outgoing(desk, plink, Sealer(linkKey(Dir.P2D, desk, plink), Dir.P2D, desk, plink))
         }
 
+        /**
+         * An opener for what the machine on [desk] says.
+         *
+         * The machine seals one stream for every phone attached to it at once, so no phone
+         * link goes into the key or into what is sealed, and zeros stand in for one on
+         * both sides. That rule is a thing to get wrong exactly once, so it is written
+         * here and nowhere else: a caller names the machine link and gets an opener.
+         */
+        fun incoming(desk: ByteArray): Opener {
+            val none = ByteArray(LINK_BYTES)
+            return Opener(linkKey(Dir.D2P, desk, none), Dir.D2P, desk, none)
+        }
+
         /** The signature that gets a socket open. */
         fun signConnect(role: String, ts: Long, nonce: String): String {
             val mac = Mac.getInstance("HmacSHA256")
@@ -219,6 +232,16 @@ object Crypto {
         return mac.doFinal(ikm)
     }
 
+    /**
+     * RFC 5869 expand.
+     *
+     * The info parts are run together with nothing between them, which is only safe
+     * because every part either side passes is a fixed width: a three-byte label and
+     * sixteen-byte links. A part whose length could vary would have to carry its length
+     * with it, or two different sets of parts could run together into the same bytes and
+     * derive the same key — and the harness would have to carry it too, since this is one
+     * format written twice.
+     */
     private fun expand(prk: ByteArray, info: List<ByteArray>, length: Int): ByteArray {
         val mac = Mac.getInstance("HmacSHA256")
         val out = ByteArray(length)

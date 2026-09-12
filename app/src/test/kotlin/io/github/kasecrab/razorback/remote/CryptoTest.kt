@@ -59,9 +59,10 @@ class CryptoTest {
     @Test
     fun aFrameTheHarnessSealedOpensHere() {
         val keys = Crypto.Keys(code)
-        val opener = Crypto.Opener(
-            keys.linkKey(Crypto.Dir.D2P, link, plink), Crypto.Dir.D2P, link, ByteArray(16),
-        )
+        // Through the factory the app itself calls, so what is checked against the
+        // harness is the rule as the app applies it: a machine's frame is sealed for
+        // every phone at once, and no phone link goes into its key or its seal.
+        val opener = keys.incoming(link)
         val opened = opener.open(
             1,
             "WyE_s2H9a6HdhCqE361oZWLuO6KFavAsl1DAu89CC5f4JF342bjQ0NlmP5w3F26FyzG_O7nL7L0",

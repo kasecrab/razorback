@@ -174,12 +174,7 @@ class RelayClient(
     private fun openEvent(frame: Frames.Envelope.Evt): Crypto.Opened? {
         val desk = Crypto.unlink(frame.link) ?: return null
         if (deskLink?.contentEquals(desk) == true) return opener?.open(frame.seq, frame.ct)
-        // What the machine sends is sealed for every phone at once, so no phone
-        // link goes into its key or its seal; zeros stand in for one.
-        val none = ByteArray(Crypto.LINK_BYTES)
-        val fresh = Crypto.Opener(
-            keys.linkKey(Crypto.Dir.D2P, desk, none), Crypto.Dir.D2P, desk, none,
-        ).also { it.resumeFrom(windows.resume(desk)) }
+        val fresh = keys.incoming(desk).also { it.resumeFrom(windows.resume(desk)) }
         val opened = fresh.open(frame.seq, frame.ct)
         if (opened.plain == null) return null
         keepWindow()
