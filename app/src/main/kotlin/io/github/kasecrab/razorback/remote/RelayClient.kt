@@ -2,6 +2,7 @@ package io.github.kasecrab.razorback.remote
 
 import android.os.Handler
 import android.os.Looper
+import io.github.kasecrab.razorback.core.Log
 import io.github.kasecrab.razorback.core.ws.HandshakeException
 import io.github.kasecrab.razorback.core.ws.WebSocketClient
 
@@ -142,7 +143,13 @@ class RelayClient(
                     "quota" -> "the relay has done all it will today"
                     "revoked" -> "this pairing was ended"
                     "skew" -> "this phone's clock is too far out"
-                    else -> frame.error
+                    // The relay writes this field and is trusted with nothing else it
+                    // sends, so a word it made up does not get put in front of a person
+                    // as though the app had said it.
+                    else -> {
+                        Log.d { "the relay sent a control frame this build does not know: ${frame.error}" }
+                        "the relay said something this app does not understand"
+                    }
                 }
                 val fatal = frame.error == "revoked"
                 main.post { listener.onTrouble(text, fatal) }

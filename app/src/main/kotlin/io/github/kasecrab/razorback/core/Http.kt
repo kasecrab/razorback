@@ -50,20 +50,28 @@ object Http {
         return conn
     }
 
-    /** Vendors put the useful text at error.message; fall back to a trimmed body. */
+    /**
+     * What to say about a request a vendor refused.
+     *
+     * Vendors put a sentence meant for a person at `error.message`, and that one is kept.
+     * The rest of the body is not: it used to travel four hundred characters at a time
+     * into logs that are on in release, into captions in front of the person and, through
+     * a tool result, into the model's context and the database. None of those is a place
+     * for whatever a server decided to echo back at us, and the status is what the app
+     * decides anything on anyway.
+     */
     fun errorMessage(conn: HttpURLConnection, status: Int): String {
         val raw = try {
             conn.errorStream?.bufferedReader()?.use { it.readText() }
         } catch (_: IOException) {
             null
         } ?: return "HTTP $status"
-        val fromJson = try {
+        val said = try {
             JSONObject(raw).obj("error")?.str("message")
         } catch (_: Exception) {
             null
-        }
-        val text = fromJson ?: raw.trim()
-        return if (text.length > 400) text.take(400) + "…" else text.ifEmpty { "HTTP $status" }
+        } ?: return "HTTP $status"
+        return if (said.length > 400) said.take(400) + "…" else said.ifEmpty { "HTTP $status" }
     }
 }
 

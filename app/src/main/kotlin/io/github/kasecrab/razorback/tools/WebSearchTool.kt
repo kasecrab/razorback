@@ -1,5 +1,6 @@
 package io.github.kasecrab.razorback.tools
 
+import io.github.kasecrab.razorback.core.HttpException
 import io.github.kasecrab.razorback.core.Log
 import io.github.kasecrab.razorback.core.Secrets
 import io.github.kasecrab.razorback.core.int
@@ -53,13 +54,22 @@ class WebSearchTool(
                 val hits = if (vendor == Secrets.BRAVE) BraveSearch.search(key, query, count) else ExaSearch.search(key, query, count)
                 return ToolResult(format(hits))
             } catch (e: Exception) {
-                Log.w("$vendor search failed: ${e.message}")
+                Log.w("$vendor search failed${statusOf(e)}")
+                Log.d { "$vendor search failed: ${e.message}" }
                 failure = e
             }
         }
         val why = failure ?: return ToolResult("no search key configured", isError = true)
-        return ToolResult("search failed: ${why.message}", isError = true)
+        // What went wrong and nothing the vendor said about it. A tool result is read by
+        // the model, sent on to whoever runs it, and written into the database; a search
+        // engine's error body has no business in any of the three, and the model has
+        // nothing to do with one beyond knowing the search did not happen.
+        return ToolResult("search failed${statusOf(why)}", isError = true)
     }
+
+    /** " (HTTP 429)" when the vendor refused with a status, and nothing at all otherwise. */
+    private fun statusOf(t: Throwable): String =
+        (t as? HttpException)?.let { " (HTTP ${it.status})" } ?: ""
 
     private fun format(hits: List<SearchHit>): String {
         if (hits.isEmpty()) return "no results"

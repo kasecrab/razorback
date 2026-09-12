@@ -137,7 +137,12 @@ class SttLink(
                 val index = json.optInt("turn_index", 0)
                 main.post { listener?.onTurn(kind, transcript, index, 1f) }
             }
-            "Error" -> Log.w("flux: $text")
+            // The frame is the vendor's own text, so the log that is on in release says
+            // only that one arrived; the words are for a build being worked on.
+            "Error" -> {
+                Log.w("flux reported an error")
+                Log.d { "flux: $text" }
+            }
         }
     }
 }

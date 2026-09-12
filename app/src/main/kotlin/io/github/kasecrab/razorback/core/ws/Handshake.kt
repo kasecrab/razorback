@@ -6,7 +6,13 @@ import java.io.InputStream
 import java.security.MessageDigest
 import java.security.SecureRandom
 
-class HandshakeException(val status: Int, val body: String) : IOException("handshake failed: HTTP $status ${body.take(200)}")
+/**
+ * A refused upgrade. The [body] is kept for the callers that read something out of it by
+ * name, and stays out of the message, which is what ends up in logs that are on in release
+ * and in captions in front of a person: a server's body is that server's text and not the
+ * app's, and the status is what anything here actually decides on.
+ */
+class HandshakeException(val status: Int, val body: String) : IOException("handshake failed: HTTP $status")
 
 /** The HTTP upgrade request and its reply. */
 object Handshake {
