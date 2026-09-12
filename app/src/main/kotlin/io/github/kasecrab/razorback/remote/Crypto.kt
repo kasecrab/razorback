@@ -111,6 +111,9 @@ object Crypto {
             lastSeq = seq
         }
 
+        /** The last number opened. */
+        val seq: Long get() = lastSeq
+
         fun open(seq: Long, ct: String): Opened {
             // Before the cipher, not after: the cheap check turns a flood of
             // replayed frames into a flood of integer comparisons.

@@ -53,6 +53,8 @@ class RelayClient(
     @Volatile private var deskLink: ByteArray? = null
     @Volatile private var sealer: Crypto.Sealer? = null
     @Volatile private var opener: Crypto.Opener? = null
+    /** How far each machine link has been read this session, so a link that comes round again does not start from nought. */
+    private val windows = HashMap<String, Long>()
 
     fun start(from: Long = 0) {
         cursor = from
@@ -157,10 +159,12 @@ class RelayClient(
     private fun rekey(link: String) {
         val desk = Crypto.unhex(link) ?: return
         if (deskLink?.contentEquals(desk) == true) return
+        deskLink?.let { windows[Crypto.hex(it)] = opener?.seq ?: 0L }
+        if (windows.size > WINDOWS_KEPT) windows.clear()
         deskLink = desk
         opener = Crypto.Opener(
             keys.linkKey(Crypto.Dir.D2P, desk, plink), Crypto.Dir.D2P, desk, ByteArray(16),
-        )
+        ).also { fresh -> windows[link]?.let { fresh.resumeFrom(it) } }
         sealer = Crypto.Sealer(
             keys.linkKey(Crypto.Dir.P2D, desk, plink), Crypto.Dir.P2D, desk, plink,
         )
@@ -193,6 +197,10 @@ class RelayClient(
         val wait = backoffMs
         backoffMs = minOf(backoffMs * 2, 16_000L)
         main.postDelayed({ if (armed && ws == null) dial() }, wait)
+    }
+
+    private companion object {
+        const val WINDOWS_KEPT = 64
     }
 
     private fun esc(s: String): String = buildString {
