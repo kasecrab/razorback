@@ -49,11 +49,18 @@ object Notifs {
 
     /** A machine waiting on an answer is worth a person's attention. */
     fun remoteAsking(context: Context, what: String) {
+        val public = Notification.Builder(context, CHANNEL_REPLIES)
+            .setSmallIcon(R.drawable.ic_waveform)
+            .setContentTitle(context.getString(R.string.notif_asking))
+            .setContentIntent(openChat(context, null))
+            .build()
         val n = Notification.Builder(context, CHANNEL_REPLIES)
             .setSmallIcon(R.drawable.ic_waveform)
             .setContentTitle(context.getString(R.string.notif_asking))
             .setContentText(what)
             .setAutoCancel(true)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
             .setContentIntent(openChat(context, null))
             .build()
         context.getSystemService(NotificationManager::class.java).notify(ID_REMOTE_ASK, n)
@@ -69,13 +76,21 @@ object Notifs {
             .setContentIntent(openChat(context, conversationId))
             .build()
 
+    /** The words of a reply are for the person holding the unlocked phone; the lock screen sees only that one is ready. */
     fun replyReady(context: Context, title: String, preview: String, conversationId: String?) {
+        val public = Notification.Builder(context, CHANNEL_REPLIES)
+            .setSmallIcon(R.drawable.ic_waveform)
+            .setContentTitle(context.getString(R.string.notif_reply_ready))
+            .setContentIntent(openChat(context, conversationId))
+            .build()
         val n = Notification.Builder(context, CHANNEL_REPLIES)
             .setSmallIcon(R.drawable.ic_waveform)
             .setContentTitle(title)
             .setContentText(preview)
             .setStyle(Notification.BigTextStyle().bigText(preview))
             .setAutoCancel(true)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
             .setContentIntent(openChat(context, conversationId))
             .build()
         context.getSystemService(NotificationManager::class.java).notify(ID_REPLY, n)

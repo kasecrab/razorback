@@ -315,4 +315,5 @@
     <string name="tool_failed">%s failed</string>
     <string name="notif_watching">Watching a session</string>
     <string name="notif_asking">A machine is waiting on you</string>
+    <string name="notif_reply_ready">Reply ready</string>
 </resources>
