@@ -305,5 +305,41 @@ object Crypto {
     fun b64u(raw: ByteArray): String =
         Base64.getUrlEncoder().withoutPadding().encodeToString(raw)
 
-    fun unb64u(text: String): ByteArray = Base64.getUrlDecoder().decode(text)
+    /**
+     * The same, read back, and strictly.
+     *
+     * The harness's reader refuses padding and refuses a last character whose spare bits
+     * are set, so this one does too. Left alone, one string of bytes has several spellings
+     * on a wire that two separate implementations have to agree about, and "several
+     * spellings of the same thing" is a hole the day anything starts telling frames apart
+     * by the text they arrived as.
+     */
+    fun unb64u(text: String): ByteArray {
+        // A group of one character is not a group; a group of two or three carries bits
+        // over the bytes it stands for, and those have to be nought.
+        val spare = when (text.length % 4) {
+            0 -> 0
+            2 -> 4
+            3 -> 2
+            else -> throw IllegalArgumentException(NOT_B64U)
+        }
+        var last = 0
+        for (c in text) {
+            last = b64uValue(c)
+            if (last < 0) throw IllegalArgumentException(NOT_B64U)
+        }
+        if (spare > 0 && last and ((1 shl spare) - 1) != 0) throw IllegalArgumentException(NOT_B64U)
+        return Base64.getUrlDecoder().decode(text)
+    }
+
+    private fun b64uValue(c: Char): Int = when (c) {
+        in 'A'..'Z' -> c - 'A'
+        in 'a'..'z' -> c - 'a' + 26
+        in '0'..'9' -> c - '0' + 52
+        '-' -> 62
+        '_' -> 63
+        else -> -1
+    }
+
+    private const val NOT_B64U = "not base64url without padding"
 }

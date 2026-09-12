@@ -173,6 +173,22 @@ class CryptoTest {
     }
 
     @Test
+    fun aFrameSpelledAnyWayButTheOneWayIsRefused() {
+        // The harness writes base64url with no padding and will read nothing
+        // else. So does this: one string of bytes has one spelling on a wire
+        // two separate implementations have to agree about.
+        assertArrayEquals(byteArrayOf(1, 2, 3), Crypto.unb64u(Crypto.b64u(byteArrayOf(1, 2, 3))))
+        assertArrayEquals(byteArrayOf('a'.code.toByte()), Crypto.unb64u("YQ"))
+        // "YR" reads as the same 'a' under a lenient reader: the last character
+        // carries four bits over the byte it stands for, and they are not nought.
+        assertThrows(IllegalArgumentException::class.java) { Crypto.unb64u("YR") }
+        assertThrows(IllegalArgumentException::class.java) { Crypto.unb64u("YQ==") }
+        assertThrows(IllegalArgumentException::class.java) { Crypto.unb64u("abc=") }
+        assertThrows(IllegalArgumentException::class.java) { Crypto.unb64u("a") }
+        assertThrows(IllegalArgumentException::class.java) { Crypto.unb64u("a+b/") }
+    }
+
+    @Test
     fun aSealIsNotMadeOverSomethingThatIsNotALink() {
         val keys = Crypto.Keys(code)
         val key = keys.linkKey(Crypto.Dir.D2P, link, plink)
