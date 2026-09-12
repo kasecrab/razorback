@@ -140,12 +140,31 @@ object Importer {
         return Result(emptyMap(), 0, true)
     }
 
+    /**
+     * A settings file is somebody else's bytes. Only preferences the app knows the shape
+     * of are taken, the relay address is held to the same rule as when typed, and keys
+     * go only under the four vendor names: nothing in a file can plant a pairing, reach
+     * the encrypted store by name, or point the app at a plain-text relay.
+     */
     private fun applySettings(json: JSONObject) {
         require(json.optString("app") == "razorback") { "not a Razorback settings file" }
         val app = App.instance
         json.optJSONObject("prefs")?.let { p ->
             for (k in p.keys()) {
-                when (val v = p.opt(k)) {
+                if (!prefAllowed(k)) {
+                    Log.w("skipping pref $k")
+                    continue
+                }
+                val v = p.opt(k)
+                if (v is String && v.length > MAX_PREF_CHARS) {
+                    Log.w("skipping oversized pref $k")
+                    continue
+                }
+                if (k == io.github.kasecrab.razorback.core.Keys.RELAY_URL.name) {
+                    if (v is String && (v.isEmpty() || io.github.kasecrab.razorback.remote.RelayUrl.acceptable(v))) app.prefs.putRawString(k, io.github.kasecrab.razorback.remote.RelayUrl.clean(v))
+                    continue
+                }
+                when (v) {
                     is String -> app.prefs.putRawString(k, v)
                     is Boolean -> app.prefs.putRawBoolean(k, v)
                     is Int -> app.prefs.putRawInt(k, v)
@@ -155,6 +174,28 @@ object Importer {
                 }
             }
         }
-        json.optJSONObject("secrets")?.let { s -> for (k in s.keys()) app.secrets.put(k, s.optString(k)) }
+        json.optJSONObject("secrets")?.let { s ->
+            for (k in s.keys()) {
+                if (k !in IMPORTABLE_SECRETS) {
+                    Log.w("skipping secret $k")
+                    continue
+                }
+                val v = s.optString(k)
+                if (v.length <= MAX_PREF_CHARS) app.secrets.put(k, v)
+            }
+        }
     }
+
+    /** The namespaces the app's own preferences live in; a file gets nothing outside them. */
+    private fun prefAllowed(name: String): Boolean =
+        PREF_NAMESPACES.any { name.startsWith(it) } && !name.startsWith(io.github.kasecrab.razorback.core.Secrets.PREFIX)
+
+    private val PREF_NAMESPACES = listOf("model.", "prompt.", "theme.", "tools.", "ui.", "voice.", "verified.", "relay.url")
+    private val IMPORTABLE_SECRETS = setOf(
+        io.github.kasecrab.razorback.core.Secrets.OPENROUTER,
+        io.github.kasecrab.razorback.core.Secrets.DEEPGRAM,
+        io.github.kasecrab.razorback.core.Secrets.BRAVE,
+        io.github.kasecrab.razorback.core.Secrets.EXA,
+    )
+    private const val MAX_PREF_CHARS = 64 * 1024
 }
