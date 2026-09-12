@@ -167,7 +167,7 @@ class RelayClient(
      * under a key the first stream had already spent those numbers on.
      */
     private fun openEvent(frame: Frames.Envelope.Evt): Crypto.Opened? {
-        val desk = Crypto.unhex(frame.link) ?: return null
+        val desk = Crypto.unlink(frame.link) ?: return null
         if (deskLink?.contentEquals(desk) == true) return opener?.open(frame.seq, frame.ct)
         // What the machine sends is sealed for every phone at once, so no phone
         // link goes into its key or its seal; zeros stand in for one.

@@ -102,6 +102,8 @@ object Crypto {
      */
     class Sealer(key: ByteArray, private val dir: Dir,
                  private val link: ByteArray, private val plink: ByteArray) {
+        init { linkSized(link, plink) }
+
         private val key = SecretKeySpec(key, "AES")
         private var seq = 0L
 
@@ -135,6 +137,8 @@ object Crypto {
     /** Opens incoming frames, and refuses to open one twice. */
     class Opener(key: ByteArray, private val dir: Dir,
                  private val link: ByteArray, private val plink: ByteArray) {
+        init { linkSized(link, plink) }
+
         private val key = SecretKeySpec(key, "AES")
         private var lastSeq = 0L
 
@@ -181,6 +185,18 @@ object Crypto {
         val out = ByteArray(12)
         for (i in 0 until 8) out[4 + i] = ((seq shr ((7 - i) * 8)) and 0xFF).toByte()
         return out
+    }
+
+    /**
+     * Both links are a fixed sixteen bytes, and [aad] copies exactly that many
+     * out of each. A seal built over anything else is a caller's mistake — the
+     * shapes off the wire are sorted out by [unlink] long before here — so it
+     * is refused where it is made rather than read off the end of an array
+     * somewhere down inside a cipher call.
+     */
+    private fun linkSized(link: ByteArray, plink: ByteArray) {
+        require(link.size == LINK_BYTES) { "a link is $LINK_BYTES bytes, not ${link.size}" }
+        require(plink.size == LINK_BYTES) { "a phone link is $LINK_BYTES bytes, not ${plink.size}" }
     }
 
     /**
@@ -232,13 +248,30 @@ object Crypto {
     fun hex(raw: ByteArray): String =
         raw.joinToString("") { "%02x".format(it) }
 
-    fun unhex(s: String): ByteArray? {
-        if (s.length % 2 != 0) return null
-        val out = ByteArray(s.length / 2)
+    /**
+     * A link id as it arrives on the wire, or null if that is not what it is.
+     *
+     * Every side that writes one writes sixteen bytes as thirty-two lowercase
+     * hex characters, so anything else did not come from a peer that knows the
+     * format. The length is the part that matters: a link is copied into
+     * fixed-width additional data, so a short one is not a smaller link, it is
+     * a read off the end of an array on the socket's own thread.
+     */
+    fun unlink(s: String): ByteArray? {
+        if (s.length != LINK_BYTES * 2) return null
+        val out = ByteArray(LINK_BYTES)
         for (i in out.indices) {
-            out[i] = s.substring(i * 2, i * 2 + 2).toIntOrNull(16)?.toByte() ?: return null
+            val high = digit(s[i * 2]) ?: return null
+            val low = digit(s[i * 2 + 1]) ?: return null
+            out[i] = ((high shl 4) or low).toByte()
         }
         return out
+    }
+
+    private fun digit(c: Char): Int? = when (c) {
+        in '0'..'9' -> c - '0'
+        in 'a'..'f' -> c - 'a' + 10
+        else -> null
     }
 
     /**

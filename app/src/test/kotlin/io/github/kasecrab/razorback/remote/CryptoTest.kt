@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
@@ -151,6 +152,35 @@ class CryptoTest {
         )
         val (seq, ct) = sealer.seal("from a link you retired".toByteArray())
         assertEquals(Crypto.Refusal.REFUSED, opener.open(seq, ct).why)
+    }
+
+    @Test
+    fun aLinkIsThirtyTwoLowercaseHexCharactersOrItIsNotALink() {
+        val written = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+        val bytes = Crypto.unlink(written)!!
+        assertEquals(16, bytes.size)
+        assertEquals(written, Crypto.hex(bytes))
+        // Each of these used to come back as a link of whatever length it felt
+        // like, and the first fixed-width copy made of one ended the process.
+        assertNull(Crypto.unlink(""))
+        assertNull(Crypto.unlink("ab"))
+        assertNull(Crypto.unlink(written.dropLast(2)))
+        assertNull(Crypto.unlink(written + "11"))
+        assertNull(Crypto.unlink(written.uppercase()))
+        assertNull(Crypto.unlink(written.dropLast(1) + "g"))
+        assertNull(Crypto.unlink(written.dropLast(1) + " "))
+    }
+
+    @Test
+    fun aSealIsNotMadeOverSomethingThatIsNotALink() {
+        val keys = Crypto.Keys(code)
+        val key = keys.linkKey(Crypto.Dir.D2P, link, plink)
+        assertThrows(IllegalArgumentException::class.java) {
+            Crypto.Opener(key, Crypto.Dir.D2P, ByteArray(1), ByteArray(16))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            Crypto.Sealer(key, Crypto.Dir.P2D, link, ByteArray(0))
+        }
     }
 
     @Test

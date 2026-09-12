@@ -17,12 +17,17 @@ class FramesTest {
 
     @Test
     fun anEventFrameIsReadAsOne() {
+        // A link id the length one really is, because a fixture is what the
+        // next person writing one copies. The envelope reader passes the field
+        // through as it finds it; what it names has to be a link is checked
+        // where a key would be made from it.
+        val link = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
         val frame = Frames.readEnvelope(
-            """{"t":"evt","v":1,"link":"ab","seq":7,"ct":"c2VhbGVk","n":42}""",
+            """{"t":"evt","v":1,"link":"$link","seq":7,"ct":"c2VhbGVk","n":42}""",
         )
         assertTrue(frame is Frames.Envelope.Evt)
         frame as Frames.Envelope.Evt
-        assertEquals("ab", frame.link)
+        assertEquals(link, frame.link)
         assertEquals(7L, frame.seq)
         assertEquals(42L, frame.n)
     }

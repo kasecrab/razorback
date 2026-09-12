@@ -19,6 +19,8 @@ import javax.net.ssl.SSLSocketFactory
  * callbacks on itself; every write is queued onto one writer thread, so callers on the
  * main thread never touch the network and the audio thread never waits on it.
  * [close] from elsewhere is the cancel path: the reader reports closed, not failed.
+ * A callback that throws costs the socket and nothing more: it is reported as a failure
+ * like any other, rather than escaping the reader thread and ending the process.
  */
 class WebSocketClient(
     private val url: String,
@@ -153,6 +155,14 @@ class WebSocketClient(
             cleanup()
             writer.shutdown()
             if (wasClosing) listener.onClosed(this, 1000, "") else listener.onFailure(this, e)
+        } catch (e: RuntimeException) {
+            // Whatever a listener made of a message, it costs this socket and nothing
+            // more. The reader is a thread of its own, and an exception let out of one
+            // ends the process — every service running in it with them — over a single
+            // message somebody else wrote. A reconnect is the right price for that.
+            cleanup()
+            writer.shutdown()
+            listener.onFailure(this, e)
         }
     }
 
