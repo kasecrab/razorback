@@ -94,7 +94,8 @@ class RemoteLink(
     /** Remember a pairing and connect with it. */
     fun pair(url: String, code: String): Boolean {
         val raw = Codes.parse(code) ?: return false
-        prefs[Keys.RELAY_URL] = url.trim().trimEnd('/')
+        if (!RelayUrl.acceptable(url)) return false
+        prefs[Keys.RELAY_URL] = RelayUrl.clean(url)
         secrets.put(Secrets.RELAY, code)
         hub = Crypto.Keys(raw).hub
         scope.launch { store.rememberMachine(hub, "a machine", url) }

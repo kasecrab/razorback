@@ -86,17 +86,7 @@ class MainActivity : Activity() {
             val url = data.getQueryParameter("u").orEmpty()
             val code = data.getQueryParameter("c").orEmpty()
             intent.data = null
-            val paired = url.isNotEmpty() && App.instance.remote.pair(url, code)
-            io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
-                .header(
-                    if (paired) "Paired" else "That is not a pairing",
-                    if (paired) {
-                        "This phone can now watch sessions on that machine."
-                    } else {
-                        "The link did not hold a relay and a code."
-                    },
-                )
-                .show()
+            offerPairing(url, code)
             return
         }
         if (data.host != "chat") return
@@ -106,6 +96,33 @@ class MainActivity : Activity() {
             val conv = App.instance.store.getConversation(id) ?: return@launch
             App.instance.engine.open(conv)
         }
+    }
+
+    /**
+     * Any app on the phone can fire a pairing link at this activity, so nothing is written
+     * until the person has read what it is and said yes: the relay has to be https, the
+     * code has to be a code, and a pairing already held is named before it is replaced.
+     */
+    private fun offerPairing(url: String, code: String) {
+        val remote = App.instance.remote
+        val relay = io.github.kasecrab.razorback.remote.RelayUrl
+        val sound = relay.acceptable(url) && io.github.kasecrab.razorback.remote.Codes.parse(code) != null
+        if (!sound) {
+            io.github.kasecrab.razorback.ui.core.Haptics.reject()
+            io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
+                .header(getString(R.string.pair_bad_title), getString(R.string.pair_bad_text))
+                .show()
+            return
+        }
+        val held = if (remote.paired) remote.machine?.host ?: relay.host(App.instance.prefs[io.github.kasecrab.razorback.core.Keys.RELAY_URL]) else null
+        val text = if (held != null) getString(R.string.pair_replaces, held) else getString(R.string.pair_text)
+        io.github.kasecrab.razorback.ui.widget.ActionSheet(uiContext)
+            .header(getString(R.string.pair_title, relay.host(url)), text)
+            .add(R.drawable.ic_check, getString(R.string.remote_pair)) {
+                if (remote.pair(url, code)) io.github.kasecrab.razorback.ui.core.Haptics.confirm()
+            }
+            .add(R.drawable.ic_close, getString(R.string.pair_not_now), danger = true) {}
+            .show()
     }
 
     override fun onStart() {

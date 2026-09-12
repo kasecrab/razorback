@@ -109,8 +109,7 @@ class RemoteScreen(context: Context) : Screen(context), RemoteLink.Watcher {
         Keyboard.hideAll(context)
         val relay = url.text.trim().trimEnd('/')
         val typed = code.text
-        val plainHost = relay.startsWith("https://") || relay.startsWith("http://localhost") || relay.startsWith("http://127.0.0.1")
-        if (!plainHost) {
+        if (!io.github.kasecrab.razorback.remote.RelayUrl.acceptable(relay)) {
             Haptics.reject()
             fail(context.getString(R.string.remote_bad_url))
             return

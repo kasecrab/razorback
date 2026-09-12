@@ -276,6 +276,12 @@
     <string name="remote_new_dir">Directory on %s</string>
     <string name="remote_other_dir">Another directory…</string>
     <string name="remote_starting_in">Starting a session in %s</string>
+    <string name="pair_title">Pair with %s?</string>
+    <string name="pair_text">This phone will be able to watch and drive sessions on that machine. Anyone who holds the code can do the same.</string>
+    <string name="pair_replaces">This replaces the pairing with %s. Anyone who holds the new code can watch and drive sessions on that machine.</string>
+    <string name="pair_not_now">Not now</string>
+    <string name="pair_bad_title">That is not a pairing</string>
+    <string name="pair_bad_text">The link did not hold an https relay and a pairing code.</string>
     <string name="remote_connected">Connected</string>
     <string name="remote_connecting">Connecting…</string>
     <string name="remote_running">Running</string>

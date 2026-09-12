@@ -83,7 +83,7 @@ class RelayClient(
         val nonce = Crypto.newNonce()
         val signature = keys.signConnect("phone", ts, nonce)
         val dialled = WebSocketClient(
-            "${socketUrl()}/hub/${keys.hub}?r=phone&ts=$ts&n=${esc(nonce)}&h=${esc(signature)}",
+            "${RelayUrl.socket(url)}/hub/${keys.hub}?r=phone&ts=$ts&n=${esc(nonce)}&h=${esc(signature)}",
             emptyMap(),
             object : WebSocketClient.Listener {
                 override fun onOpen(ws: WebSocketClient) {
@@ -193,15 +193,6 @@ class RelayClient(
         val wait = backoffMs
         backoffMs = minOf(backoffMs * 2, 16_000L)
         main.postDelayed({ if (armed && ws == null) dial() }, wait)
-    }
-
-    private fun socketUrl(): String {
-        val trimmed = url.trim().trimEnd('/')
-        return when {
-            trimmed.startsWith("https://") -> "wss://" + trimmed.substring(8)
-            trimmed.startsWith("http://") -> "ws://" + trimmed.substring(7)
-            else -> trimmed
-        }
     }
 
     private fun esc(s: String): String = buildString {
