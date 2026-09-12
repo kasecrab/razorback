@@ -29,5 +29,7 @@ object TextExtract {
         return Loaded(name, text)
     }
 
-    fun wrap(name: String, text: String): String = "<file name=\"${name.replace("\"", "'")}\">\n$text\n</file>"
+    /** The wrapper's closing tag cannot appear inside the file, so a file cannot pretend to end and speak as the person after. */
+    fun wrap(name: String, text: String): String =
+        "<file name=\"${name.replace("\"", "'")}\">\n${text.replace("</file", "</ file", ignoreCase = true)}\n</file>"
 }
