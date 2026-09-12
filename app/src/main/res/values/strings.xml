@@ -181,6 +181,10 @@
     <string name="backup_export_settings">Export settings only</string>
     <string name="backup_export_settings_hint">A small JSON file, no chats</string>
     <string name="backup_include_keys">Include API keys in settings export</string>
+    <string name="backup_include_keys_hint">They go into the file in plain text, readable by anything that can open it</string>
+    <string name="backup_keys_warning_title">Keys in plain text</string>
+    <string name="backup_keys_warning_text">This file will hold your API keys readable by anything that can open it. Keep it somewhere private, and delete it once imported.</string>
+    <string name="backup_export_anyway">Export anyway</string>
     <string name="backup_import">Import</string>
     <string name="backup_import_hint">A zip or settings file made by Razorback</string>
     <string name="backup_replace">Replace everything on this phone</string>

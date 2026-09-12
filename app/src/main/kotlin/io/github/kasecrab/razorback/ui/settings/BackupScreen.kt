@@ -41,10 +41,20 @@ class BackupScreen(context: Context) : Screen(context) {
             create("razorback-${stamp()}.zip", "application/zip") { uri -> Exporter.exportFull(context, uri) }
         }
         row(list, R.drawable.ic_settings, R.string.backup_export_settings, R.string.backup_export_settings_hint) {
-            create("razorback-settings-${stamp()}.json", "application/json") { uri -> Exporter.exportSettings(context, uri, includeKeys) }
+            val export = { create("razorback-settings-${stamp()}.json", "application/json") { uri -> Exporter.exportSettings(context, uri, includeKeys) } }
+            if (includeKeys) {
+                // The file goes wherever the picker sends it, readable by anything that can open it.
+                io.github.kasecrab.razorback.ui.widget.ActionSheet(context)
+                    .header(context.getString(R.string.backup_keys_warning_title), context.getString(R.string.backup_keys_warning_text))
+                    .add(R.drawable.ic_download, context.getString(R.string.backup_export_anyway)) { export() }
+                    .add(R.drawable.ic_close, context.getString(R.string.pair_not_now), danger = true) {}
+                    .show()
+            } else {
+                export()
+            }
         }
         val keys = SwitchRow(context)
-        keys.set(context.getString(R.string.backup_include_keys), null, includeKeys) { includeKeys = it }
+        keys.set(context.getString(R.string.backup_include_keys), context.getString(R.string.backup_include_keys_hint), includeKeys) { includeKeys = it }
         list.addView(keys, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         row(list, R.drawable.ic_file, R.string.backup_import, R.string.backup_import_hint) { pickImport() }
         status.setPadding(dp(16), dp(12), dp(16), dp(12))
