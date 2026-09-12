@@ -43,6 +43,8 @@ object Http {
         conn.connectTimeout = CONNECT_MS
         conn.readTimeout = READ_MS
         conn.useCaches = false
+        // The key rides in a header; a redirect would carry it to wherever the redirect points.
+        conn.instanceFollowRedirects = false
         conn.setRequestProperty("Accept", "application/json")
         for ((k, v) in headers) conn.setRequestProperty(k, v)
         return conn
