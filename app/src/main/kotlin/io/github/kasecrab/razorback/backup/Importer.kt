@@ -49,11 +49,11 @@ object Importer {
                 if (name.contains("..") || name.startsWith("/")) throw IOException("unsafe entry $name")
                 when {
                     name == "manifest.json" -> {
-                        Manifest.parse(JSONObject(zip.readBytes().toString(Charsets.UTF_8)))
+                        Manifest.parse(JSONObject(bounded(zip, MAX_JSON_BYTES).readBytes().toString(Charsets.UTF_8)))
                         manifestSeen = true
                     }
                     name == "settings.json" -> {
-                        applySettings(JSONObject(zip.readBytes().toString(Charsets.UTF_8)))
+                        applySettings(JSONObject(bounded(zip, MAX_JSON_BYTES).readBytes().toString(Charsets.UTF_8)))
                         settings = true
                     }
                     name.startsWith("db/") && name.endsWith(".jsonl") -> {
@@ -64,13 +64,13 @@ object Importer {
                             wipe(db, attachmentsDir)
                             wiped = true
                         }
-                        counts[table] = importTable(db, table, zip.bufferedReader(), attachmentsDir)
+                        counts[table] = importTable(db, table, bounded(zip, MAX_TABLE_BYTES).bufferedReader(), attachmentsDir)
                     }
                     name.startsWith("attachments/") -> {
                         val file = File(attachmentsDir, name.removePrefix("attachments/"))
                         if (file.name != name.removePrefix("attachments/")) throw IOException("unsafe attachment $name")
                         if (mode == Mode.MERGE && file.exists()) continue
-                        file.outputStream().use { zip.copyTo(it) }
+                        file.outputStream().use { bounded(zip, MAX_ATTACHMENT_BYTES).copyTo(it) }
                         files++
                     }
                 }
@@ -135,7 +135,7 @@ object Importer {
     }
 
     private fun importSettingsStream(stream: InputStream): Result {
-        val json = JSONObject(stream.readBytes().toString(Charsets.UTF_8))
+        val json = JSONObject(bounded(stream, MAX_JSON_BYTES).readBytes().toString(Charsets.UTF_8))
         applySettings(json)
         return Result(emptyMap(), 0, true)
     }
@@ -189,6 +189,39 @@ object Importer {
     /** The namespaces the app's own preferences live in; a file gets nothing outside them. */
     private fun prefAllowed(name: String): Boolean =
         PREF_NAMESPACES.any { name.startsWith(it) } && !name.startsWith(io.github.kasecrab.razorback.core.Secrets.PREFIX)
+
+    /**
+     * A zip says how big an entry is only in a header anyone can write, so every entry is
+     * read through a ceiling instead: a file that claims a few bytes and unpacks to
+     * gigabytes stops at the ceiling with a plain error rather than filling memory or the disk.
+     */
+    private fun bounded(stream: InputStream, max: Long): InputStream = object : java.io.FilterInputStream(stream) {
+        private var seen = 0L
+
+        override fun read(): Int {
+            val b = super.read()
+            if (b >= 0) count(1)
+            return b
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            val n = super.read(b, off, len)
+            if (n > 0) count(n)
+            return n
+        }
+
+        private fun count(n: Int) {
+            seen += n
+            if (seen > max) throw IOException("an entry in the backup is larger than ${max / (1024 * 1024)} MB")
+        }
+
+        // The zip stream must stay open for the entries after this one.
+        override fun close() {}
+    }
+
+    private const val MAX_JSON_BYTES = 4L * 1024 * 1024
+    private const val MAX_ATTACHMENT_BYTES = 64L * 1024 * 1024
+    private const val MAX_TABLE_BYTES = 1024L * 1024 * 1024
 
     private val PREF_NAMESPACES = listOf("model.", "prompt.", "theme.", "tools.", "ui.", "voice.", "verified.", "relay.url")
     private val IMPORTABLE_SECRETS = setOf(
