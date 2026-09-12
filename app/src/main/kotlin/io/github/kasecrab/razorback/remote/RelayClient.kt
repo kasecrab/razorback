@@ -52,10 +52,8 @@ class RelayClient(
     @Volatile private var deskLink: ByteArray? = null
     @Volatile private var outgoing: Crypto.Outgoing? = null
     @Volatile private var opener: Crypto.Opener? = null
-    /** How far each machine link has been read this session, so a link that comes round again does not start from nought; the least recently seen goes first when full. */
-    private val windows = object : LinkedHashMap<String, Long>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean = size > WINDOWS_KEPT
-    }
+    /** How far each machine link has been read, so a link that comes round again does not start from nought. */
+    private val windows = ReplayWindows()
 
     fun start(from: Long = 0) {
         cursor = from
@@ -174,20 +172,37 @@ class RelayClient(
         val none = ByteArray(Crypto.LINK_BYTES)
         val fresh = Crypto.Opener(
             keys.linkKey(Crypto.Dir.D2P, desk, none), Crypto.Dir.D2P, desk, none,
-        ).also { candidate -> windows[frame.link]?.let { candidate.resumeFrom(it) } }
+        ).also { it.resumeFrom(windows.resume(desk)) }
         val opened = fresh.open(frame.seq, frame.ct)
         if (opened.plain == null) return null
-        deskLink?.let { windows[Crypto.hex(it)] = opener?.seq ?: 0L }
+        keepWindow()
         deskLink = desk
         opener = fresh
         outgoing = keys.outgoing(desk)
         return opened
     }
 
+    /**
+     * Put away how far the link being left has been read.
+     *
+     * Every place that lets go of a link comes through here, because the relay keeps its
+     * log and hands it back to whoever subscribes: a window that started again at nothing
+     * would open frames this phone has already read, which is the one thing the window is
+     * there to stop.
+     */
+    private fun keepWindow() {
+        val desk = deskLink ?: return
+        windows.keep(desk, opener?.seq ?: 0L)
+    }
+
     /** The one place that decides whether to dial again. */
     private fun dropped(socket: WebSocketClient, error: Throwable?) {
         if (ws !== socket) return
         ws = null
+        // The socket is gone; what has been read on it is not. The same machine link is
+        // usually still there on the other side when this dials again, and the relay will
+        // offer its log again, so the window goes with it rather than starting over.
+        keepWindow()
         outgoing = null
         opener = null
         deskLink = null
@@ -214,7 +229,6 @@ class RelayClient(
     }
 
     private companion object {
-        const val WINDOWS_KEPT = 64
         const val AUTH_HEADER = "x-ah-auth"
     }
 
