@@ -94,6 +94,24 @@ class Prefs(context: Context) : SharedPreferences.OnSharedPreferenceChangeListen
     /** Whether anything at all is stored under [prefix]. */
     fun anyUnder(prefix: String): Boolean = sp.all.keys.any { it.startsWith(prefix) }
 
-    /** Everything except secrets, for settings export. */
-    fun snapshot(): Map<String, Any?> = sp.all.filterKeys { !it.startsWith(Secrets.PREFIX) }
+    /** The app's own settings, for settings export: the namespaces in [exportable] and nothing else. */
+    fun snapshot(): Map<String, Any?> = sp.all.filterKeys { exportable(it) }
+
+    companion object {
+        /**
+         * The preference namespaces a settings file carries.
+         *
+         * Named one by one rather than by what to leave out. Taking everything that was
+         * not a secret is how a file the person was told holds no keys came to hold a
+         * fingerprint of every one of them: `verified.` is eight bytes of SHA-256 of a
+         * key, which reads nothing back but does answer "is this the key?" for anybody
+         * holding a guess. Nor does `dev.`, or the note that says the key store was
+         * cleared, belong in a file somebody sends on. Anything new has to be put here on
+         * purpose.
+         */
+        private val EXPORTED = listOf("model.", "prompt.", "theme.", "tools.", "ui.", "voice.", "relay.url")
+
+        internal fun exportable(name: String): Boolean =
+            !name.startsWith(Secrets.PREFIX) && EXPORTED.any { name.startsWith(it) }
+    }
 }
