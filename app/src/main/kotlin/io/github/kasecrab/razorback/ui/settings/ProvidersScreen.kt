@@ -56,6 +56,7 @@ class ProvidersScreen(context: Context) : Screen(context) {
     private val rows = ArrayList<KeyRow>(4)
     private val firstLabel = TextView(context)
     private val firstChips = ArrayList<Pair<String, Chip>>(2)
+    private val lost = Caption(context)
 
     init {
         val column = LinearLayout(context)
@@ -72,6 +73,12 @@ class ProvidersScreen(context: Context) : Screen(context) {
         addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         buildSaveBar()
 
+        lost.tone = Caption.Tone.DANGER
+        lost.setText(R.string.keys_lost)
+        lost.setPadding(dp(16), dp(12), dp(16), dp(4))
+        lost.visibility = View.GONE
+        list.addView(lost, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
         header(R.string.providers_core)
         rows.add(KeyRow(Secrets.OPENROUTER, R.string.openrouter, R.string.key_hint_openrouter) { OpenRouterAccount.fetch(it) })
         rows.add(KeyRow(Secrets.DEEPGRAM, R.string.deepgram, R.string.key_hint_generic) { DeepgramAccount.check(it) })
@@ -85,6 +92,13 @@ class ProvidersScreen(context: Context) : Screen(context) {
         rows.add(KeyRow(Secrets.BRAVE, R.string.brave, R.string.key_hint_generic) { BraveSearch.search(it, "razorback", 1) })
         rows.add(KeyRow(Secrets.EXA, R.string.exa, R.string.key_hint_generic) { ExaSearch.search(it, "razorback", 1) })
         buildFirstChoice()
+        // The rows above are the first thing on this screen to ask for a key, and asking
+        // is where a keystore key that has gone gets noticed, so the notice can only go up
+        // once they have asked.
+        if (secrets.lostKeystore()) {
+            lost.visibility = View.VISIBLE
+            secrets.keystoreLossTold()
+        }
         syncSaveBar()
     }
 

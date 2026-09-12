@@ -16,6 +16,7 @@
     <string name="providers">Providers &amp; keys</string>
     <string name="providers_subtitle">OpenRouter, Deepgram, web search</string>
     <string name="providers_core">Chat and voice</string>
+    <string name="keys_lost">The keys saved on this phone were locked with a key the phone no longer has, so they could not be read and have been cleared. Type them in again.</string>
     <string name="openrouter">OpenRouter</string>
     <string name="deepgram">Deepgram</string>
     <string name="web_search">Web search</string>

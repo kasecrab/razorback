@@ -91,6 +91,9 @@ class Prefs(context: Context) : SharedPreferences.OnSharedPreferenceChangeListen
 
     fun contains(name: String): Boolean = sp.contains(name)
 
+    /** Whether anything at all is stored under [prefix]. */
+    fun anyUnder(prefix: String): Boolean = sp.all.keys.any { it.startsWith(prefix) }
+
     /** Everything except secrets, for settings export. */
     fun snapshot(): Map<String, Any?> = sp.all.filterKeys { !it.startsWith(Secrets.PREFIX) }
 }
