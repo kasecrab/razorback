@@ -75,9 +75,17 @@ class ListMarkerSpan(
     }
 }
 
-/** Opens the link in the browser; drawn in the accent without an underline. */
+/**
+ * Opens the link in the browser; drawn in the accent without an underline. Only web and
+ * mail addresses are links: the text comes from a model, a search result or another
+ * machine, and a tap must not be able to dial, text, install or pair. Anything else is
+ * left as the plain words it was.
+ */
 class LinkSpan(val url: String, private val color: Int) : ClickableSpan() {
+    private val live = allowed(url)
+
     override fun onClick(widget: View) {
+        if (!live) return
         try {
             widget.context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
@@ -86,7 +94,15 @@ class LinkSpan(val url: String, private val color: Int) : ClickableSpan() {
     }
 
     override fun updateDrawState(ds: TextPaint) {
+        if (!live) return
         ds.color = color
         ds.isUnderlineText = false
+    }
+
+    companion object {
+        fun allowed(url: String): Boolean {
+            val scheme = url.trim().substringBefore(':', "").lowercase()
+            return scheme == "http" || scheme == "https" || scheme == "mailto"
+        }
     }
 }
