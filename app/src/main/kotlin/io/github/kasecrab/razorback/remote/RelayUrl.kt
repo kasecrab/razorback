@@ -1,17 +1,19 @@
 package io.github.kasecrab.razorback.remote
 
+import io.github.kasecrab.razorback.BuildConfig
 import java.net.URI
 
 /**
  * What counts as a relay address. The socket underneath is a plain TCP socket with TLS
  * put on by hand, so the platform's cleartext rule does not cover it; the rule lives
- * here instead: https, or loopback for a relay run on the phone's own host for testing.
+ * here instead: https, and, while the app is being worked on, loopback for a relay run on
+ * the phone's own host.
  */
 object RelayUrl {
 
     fun clean(url: String): String = url.trim().trimEnd('/')
 
-    /** True for an https address with a host, or plain http to loopback only. */
+    /** True for an https address with a host, and, in a debug build alone, plain http to loopback. */
     fun acceptable(url: String): Boolean {
         val u = clean(url)
         if (u.any { it.isWhitespace() }) return false
@@ -23,7 +25,11 @@ object RelayUrl {
         val host = parsed.host ?: return false
         return when (parsed.scheme) {
             "https" -> host.isNotEmpty()
-            "http" -> host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1"
+            // A carve-out for testing, kept out of the builds people install. Shipped, it
+            // means any app already on the phone can be the relay by listening on a port:
+            // no certificate, no domain, nothing to set up, and a pairing sheet that says
+            // "Pair with 127.0.0.1?".
+            "http" -> BuildConfig.DEBUG && (host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1")
             else -> false
         }
     }
