@@ -61,6 +61,28 @@ class RemoteLink(
 
     val paired: Boolean get() = secrets.has(Secrets.RELAY) && url().isNotEmpty()
 
+    /**
+     * Whether the machine itself is there, as distinct from the relay. The relay keeps and
+     * replays what the machine said, so a socket that is open and reading tells nothing
+     * about the machine; only an answer to something this phone asked does. Every command
+     * is such a question: the relay says "offline" at once when no machine is connected,
+     * and the machine's own frames say it is.
+     */
+    var machineUp: Boolean = false
+        private set(value) {
+            if (field == value) return
+            field = value
+            watchers.forEach { it.onLink() }
+        }
+
+    /** The relay socket is open and the machine has answered on it. */
+    val connected: Boolean get() = ready() && machineUp
+
+    /** Ask the machine for its list, which doubles as a check that it is there. */
+    fun probe() {
+        if (client?.ready() == true) refresh()
+    }
+
     fun add(watcher: Watcher) {
         watchers.add(watcher)
     }
@@ -200,10 +222,21 @@ class RemoteLink(
     }
 
     override fun onDown() {
+        machineUp = false
         watchers.forEach { it.onLink() }
     }
 
+    override fun onOffline() {
+        openNewest = false
+        machineUp = false
+        watchers.forEach { it.onTrouble("that machine is not connected") }
+    }
+
     override fun onPayload(payload: Frames.FromDesk, n: Long) {
+        // Anything the machine says makes it present, until the relay says otherwise. A
+        // replay of old frames sets this too, but the "offline" answer to the list asked
+        // for on connect follows the replay and puts it right.
+        if (payload !is Frames.FromDesk.Bye) machineUp = true
         when (payload) {
             is Frames.FromDesk.Hello -> {
                 machine = payload.machine
@@ -265,6 +298,7 @@ class RemoteLink(
                     "revoked" -> "this pairing was ended"
                     else -> "that machine has gone"
                 }
+                if (payload.reason != "tui_taking_over") machineUp = false
                 watchers.forEach { it.onTrouble(text) }
             }
             else -> {}

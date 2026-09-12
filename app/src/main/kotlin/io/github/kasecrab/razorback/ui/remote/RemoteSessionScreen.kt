@@ -162,7 +162,7 @@ class RemoteSessionScreen(context: Context, private val session: String, private
         val host = link.machine?.host ?: context.getString(R.string.remote)
         val cwd = link.sessions.firstOrNull { it.id == session }?.cwd?.ifBlank { null } ?: cwdHint
         val state = when {
-            !link.ready() -> context.getString(R.string.remote_offline)
+            !link.connected -> context.getString(R.string.remote_offline)
             !stateSeen -> context.getString(R.string.remote_connecting)
             busy -> context.getString(R.string.remote_working)
             else -> null
@@ -171,7 +171,7 @@ class RemoteSessionScreen(context: Context, private val session: String, private
     }
 
     private fun say(text: String) {
-        if (!link.ready()) {
+        if (!link.connected) {
             Haptics.reject()
             Toast.makeText(context, R.string.remote_offline, Toast.LENGTH_SHORT).show()
             composer.input.setText(text)
@@ -193,7 +193,7 @@ class RemoteSessionScreen(context: Context, private val session: String, private
 
     override fun onLink() {
         // Back after a drop, the link repeats the attach itself; the machine's answer sets the state again.
-        if (!link.ready()) stateSeen = false
+        if (!link.connected) stateSeen = false
         subtitle()
     }
 

@@ -46,8 +46,6 @@ class RemoteHubScreen(context: Context) : Screen(context), RemoteLink.Watcher {
     private val status = StatusCard(context)
     private val sessionsTile = Tile(context)
     private val runningTile = Tile(context)
-    private val places = LinearLayout(context)
-    private val placesHeader = SectionHeader(context)
     private val sessions = LinearLayout(context)
     private val empty = Caption(context)
     private val start = Chip(context)
@@ -70,11 +68,6 @@ class RemoteHubScreen(context: Context) : Screen(context), RemoteLink.Watcher {
         tiles.addView(sessionsTile, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
         tiles.addView(runningTile, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         list.addView(tiles, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { setMargins(dp(16), dp(12), dp(16), 0) })
-
-        placesHeader.setText(R.string.remote_places)
-        list.addView(placesHeader)
-        places.orientation = LinearLayout.VERTICAL
-        list.addView(places, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         list.addView(SectionHeader(context).apply { setText(R.string.remote_sessions) })
         empty.setPadding(dp(16), 0, dp(16), dp(8))
@@ -99,16 +92,29 @@ class RemoteHubScreen(context: Context) : Screen(context), RemoteLink.Watcher {
         render()
     }
 
+    /** While this page is open the machine is asked for its list now and then, so "connected" stays true to life. */
+    private val probe = object : Runnable {
+        override fun run() {
+            link.probe()
+            postDelayed(this, PROBE_MS)
+        }
+    }
+
     override fun onEnter() {
         link.add(this)
         if (link.paired) link.start()
-        link.refresh()
+        removeCallbacks(probe)
+        post(probe)
         render()
     }
 
-    override fun onResume() = render()
+    override fun onResume() {
+        link.probe()
+        render()
+    }
 
     override fun onExit() {
+        removeCallbacks(probe)
         link.remove(this)
     }
 
@@ -121,29 +127,19 @@ class RemoteHubScreen(context: Context) : Screen(context), RemoteLink.Watcher {
 
     private fun render() {
         val machine = link.machine
-        val all = link.sessions
+        val connected = link.connected
+        // A machine that is away runs nothing, whatever its last list said.
+        val all = if (connected) link.sessions else link.sessions.map { it.copy(live = false) }
         val live = all.filter { it.live }
         bar.title.text = machine?.host ?: context.getString(R.string.remote)
-        status.set(link.ready(), machine)
+        status.set(connected, machine)
         sessionsTile.set(all.size.toString(), context.getString(R.string.remote_tile_sessions))
         runningTile.set(live.size.toString(), context.getString(R.string.remote_tile_running))
-        start.visibility = if (link.canStart) View.VISIBLE else View.GONE
-
-        places.removeAllViews()
-        val counts = LinkedHashMap<String, Int>()
-        for (s in all.sortedByDescending { it.startedMs }) if (s.cwd.isNotBlank()) counts[s.cwd] = (counts[s.cwd] ?: 0) + 1
-        val top = counts.entries.sortedByDescending { it.value }.take(5)
-        placesHeader.visibility = if (top.isEmpty()) View.GONE else View.VISIBLE
-        for ((cwd, n) in top) {
-            val row = PlaceRow(context)
-            row.set(cwd, context.resources.getQuantityString(R.plurals.remote_place_count, n, n), link.canStart)
-            row.setOnClickListener { if (link.canStart) RemoteStart.ask(context, prefer = cwd) }
-            places.addView(row, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        }
+        start.visibility = if (link.canStart && connected) View.VISIBLE else View.GONE
 
         sessions.removeAllViews()
         empty.visibility = if (all.isEmpty()) View.VISIBLE else View.GONE
-        empty.setText(if (link.ready()) R.string.remote_nothing_open else R.string.remote_offline)
+        empty.setText(if (connected) R.string.remote_nothing_open else R.string.remote_offline)
         for (s in all.sortedWith(compareByDescending<Frames.Session> { it.live }.thenByDescending { it.startedMs })) {
             val card = SessionCard(context)
             card.set(s)
@@ -169,6 +165,10 @@ class RemoteHubScreen(context: Context) : Screen(context), RemoteLink.Watcher {
                 Haptics.confirm()
             }
             .show()
+    }
+
+    private companion object {
+        const val PROBE_MS = 60_000L
     }
 
     /** Reachable or not, and what is on the other end. */
@@ -249,58 +249,6 @@ class RemoteHubScreen(context: Context) : Screen(context), RemoteLink.Watcher {
         }
     }
 
-    /** A directory sessions run in; tapping starts another one there. */
-    private class PlaceRow(context: Context) : LinearLayout(context), Themed {
-        private val icon = ImageView(context)
-        private val path = TextView(context)
-        private val count = TextView(context)
-        private val plus = ImageView(context)
-
-        init {
-            orientation = HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            isClickable = true
-            isFocusable = true
-            setPadding(dp(16), dp(10), dp(12), dp(10))
-            icon.scaleType = ImageView.ScaleType.CENTER
-            addView(icon, LayoutParams(dp(24), dp(24)).apply { marginEnd = dp(14) })
-            val texts = LinearLayout(context)
-            texts.orientation = VERTICAL
-            path.typeface = Fonts.regular
-            path.maxLines = 1
-            path.ellipsize = android.text.TextUtils.TruncateAt.START
-            count.typeface = Fonts.regular
-            texts.addView(path)
-            texts.addView(count)
-            addView(texts, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-            plus.scaleType = ImageView.ScaleType.CENTER
-            addView(plus, LayoutParams(dp(24), dp(24)).apply { marginStart = dp(8) })
-            onThemeChanged(context.appTheme)
-        }
-
-        override fun performClick(): Boolean {
-            val handled = super.performClick()
-            if (handled) Haptics.tick()
-            return handled
-        }
-
-        fun set(cwd: String, n: String, canStart: Boolean) {
-            path.text = cwd
-            count.text = n
-            plus.visibility = if (canStart) View.VISIBLE else View.INVISIBLE
-        }
-
-        override fun onThemeChanged(theme: Theme) {
-            background = Shapes.ripple(theme.accentSoft, null, 0f)
-            icon.setImageDrawable(context.icon(R.drawable.ic_file, theme.textSecondary))
-            plus.setImageDrawable(context.icon(R.drawable.ic_plus, theme.accent))
-            path.setTextColor(theme.textPrimary)
-            path.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.BODY))
-            count.setTextColor(theme.textTertiary)
-            count.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.sp(Type.CAPTION))
-        }
-    }
-
     /** One session: name, whether it runs and where, and how old it is. */
     private class SessionCard(context: Context) : LinearLayout(context), Themed {
         private val glyph = ImageView(context)
@@ -343,9 +291,15 @@ class RemoteHubScreen(context: Context) : Screen(context), RemoteLink.Watcher {
             live = s.live
             title.text = (s.name ?: s.title).ifBlank { s.cwd.substringAfterLast('/') }
             val state = context.getString(if (s.live) R.string.remote_running else R.string.remote_stopped)
-            meta.text = "$state  ·  ${s.cwd}"
+            meta.text = "$state  ·  ${shortPath(s.cwd)}"
             age.text = ago(s.startedMs)
             onThemeChanged(context.appTheme)
+        }
+
+        /** The last two steps of a path: enough to tell sessions apart without a line of slashes. */
+        private fun shortPath(path: String): String {
+            val parts = path.trimEnd('/').split('/').filter { it.isNotEmpty() }
+            return if (parts.size <= 2) path else "…/" + parts.takeLast(2).joinToString("/")
         }
 
         private fun ago(startedMs: Long): String {

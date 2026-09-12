@@ -213,7 +213,7 @@ class ChatScreen(context: Context) : Screen(context), ChatEngine.Listener {
         val remote = app.remote
         if (!remote.paired || panel.search.text.isNotBlank()) return null
         val host = remote.machine?.host ?: context.getString(R.string.remote)
-        return ChatListAdapter.Remote(host, remote.ready(), remote.sessions.count { it.live })
+        return ChatListAdapter.Remote(host, remote.connected, if (remote.connected) remote.sessions.count { it.live } else 0)
     }
 
     private fun reloadConversations() {

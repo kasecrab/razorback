@@ -17,7 +17,7 @@ object RemoteStart {
 
     fun ask(context: Context, prefer: String? = null) {
         val remote = App.instance.remote
-        if (!remote.ready()) {
+        if (!remote.connected) {
             Haptics.reject()
             Toast.makeText(context, R.string.remote_offline, Toast.LENGTH_SHORT).show()
             return

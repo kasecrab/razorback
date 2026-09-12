@@ -33,6 +33,8 @@ class RelayClient(
         fun onGap(from: Long) {}
         /** Something worth putting in front of a person. */
         fun onTrouble(text: String, fatal: Boolean) {}
+        /** The relay had nowhere to send what was just said: no machine is connected to it. */
+        fun onOffline() {}
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -130,6 +132,10 @@ class RelayClient(
                 main.post { listener.onGap(frame.from) }
             }
             is Frames.Envelope.Ctl -> {
+                if (frame.error == "offline") {
+                    main.post { listener.onOffline() }
+                    return
+                }
                 val text = when (frame.error) {
                     "offline" -> "that machine is not connected"
                     "quota" -> "the relay has done all it will today"
